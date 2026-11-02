@@ -21,9 +21,7 @@ export interface PressableProps extends Omit<
   scale?: number;
 }
 
-/**
- * The app's press feedback
- */
+/** A button that compresses slightly while pressed. */
 export const Pressable = React.forwardRef<HTMLButtonElement, PressableProps>(
   ({ children, className, scale = 0.97, disabled, ...props }, ref) => (
     <motion.button

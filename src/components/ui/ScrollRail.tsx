@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { observeResize } from "@/utils/resizeObserver";
 
 export interface ScrollRailProps {
   children: React.ReactNode;
@@ -23,6 +24,7 @@ export const ScrollRail: React.FC<ScrollRailProps> = ({
 }) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: false, end: false });
+  const childCount = React.Children.count(children);
 
   const measure = useCallback(() => {
     const el = scrollerRef.current;
@@ -41,11 +43,12 @@ export const ScrollRail: React.FC<ScrollRailProps> = ({
     measure();
     const el = scrollerRef.current;
     if (!el) return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    Array.from(el.children).forEach((child) => observer.observe(child));
-    return () => observer.disconnect();
-  }, [measure, children]);
+    const stops = [
+      observeResize(el, measure),
+      ...Array.from(el.children).map((child) => observeResize(child, measure)),
+    ];
+    return () => stops.forEach((stop) => stop());
+  }, [measure, childCount]);
 
   const stops = [
     edges.start ? `transparent 0, #000 ${EDGE_FADE}px` : `#000 0`,
@@ -53,7 +56,13 @@ export const ScrollRail: React.FC<ScrollRailProps> = ({
       ? `#000 calc(100% - ${EDGE_FADE}px), transparent 100%`
       : `#000 100%`,
   ].join(", ");
-  const edgeMask = `linear-gradient(to right, ${stops})`;
+  const edgeMask =
+    edges.start || edges.end
+      ? {
+          maskImage: `linear-gradient(to right, ${stops})`,
+          WebkitMaskImage: `linear-gradient(to right, ${stops})`,
+        }
+      : undefined;
 
   return (
     <div className={`relative ${className ?? ""}`}>
@@ -62,10 +71,10 @@ export const ScrollRail: React.FC<ScrollRailProps> = ({
         onScroll={measure}
         className={`w-full overflow-x-auto overflow-y-hidden overscroll-x-contain
                     scrollbar-none touch-pan-x ${scrollerClassName ?? ""}`}
-        style={{ maskImage: edgeMask, WebkitMaskImage: edgeMask }}
+        style={edgeMask}
       >
         <div
-          className={`flex w-max gap-3 ${trailingSpace} ${
+          className={`flex w-max gap-2 ${trailingSpace} ${
             align === "center" ? "h-full items-center" : "items-start"
           } ${contentClassName ?? ""}`}
         >

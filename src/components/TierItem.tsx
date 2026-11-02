@@ -4,7 +4,7 @@ import { MoreHorizontal } from "lucide-react";
 import { CellData } from "@/types";
 import { PopoverMenu } from "./ui/PopoverMenu";
 import { RemoteImage } from "./ui/RemoteImage";
-import { AdjustOverlay } from "./ui/AdjustOverlay";
+import { AdjustControls, AdjustOverlay } from "./ui/AdjustOverlay";
 import { UrlInputModal } from "./ui/UrlInputModal";
 import { useCellInteraction } from "@/hooks/useCellInteraction";
 import { useStore } from "@/store/useStore";
@@ -13,6 +13,7 @@ import { useTile } from "./tile/useTile";
 import {
   DEFAULT_TIER_ROW_HEIGHT,
   DEFAULT_TIER_CORNERS,
+  dropTint,
   tierItemRadius,
   tileStateShadow,
   type TierCorners,
@@ -38,7 +39,6 @@ export const TierItem = React.memo(function TierItem({
 }: TierItemProps) {
   const handleItemTransfer = useStore((s) => s.handleItemTransfer);
   const handleUpdateTierItem = useStore((s) => s.handleUpdateTierItem);
-  const handleTierItemRemove = useStore((s) => s.handleTierItemRemove);
 
   const tile = useTile({
     index: idx,
@@ -47,7 +47,6 @@ export const TierItem = React.memo(function TierItem({
     aspectRatio,
     update: (patch) => handleUpdateTierItem(rowId, item.id, patch),
     setImage: (src) => handleUpdateTierItem(rowId, item.id, { imageSrc: src }),
-    clear: () => handleTierItemRemove(rowId, item.id),
     returnToLibrary: () =>
       handleItemTransfer(
         { type: "tier", rowId, itemId: item.id },
@@ -97,7 +96,7 @@ export const TierItem = React.memo(function TierItem({
       }}
       /* Draggable, so the touch sensor needs to own the gesture; without
          `touch-none` a phone treats the drag as a scroll. */
-      className={`item-enter relative shrink-0 group/tile outline-none touch-none
+      className={`relative shrink-0 group/tile outline-none touch-none
                   transition-[width,height,opacity] duration-240 ease-emphasized ${
                     isDragging ? "opacity-25" : ""
                   }`}
@@ -109,8 +108,6 @@ export const TierItem = React.memo(function TierItem({
           borderRadius: radius,
           boxShadow: tileStateShadow({
             isSelected: tile.isSelected,
-            isOver: tile.isOver,
-            isFileDragOver: tile.isFileDragOver,
             resting: "inset 0 0 0 0.5px var(--material-hairline)",
           }),
         }}
@@ -122,26 +119,37 @@ export const TierItem = React.memo(function TierItem({
               alt=""
               decoding="async"
               loading="lazy"
+              colorPlaceholder
               className="absolute inset-0 w-full h-full object-cover pointer-events-none"
               style={tile.imageStyle}
             />
           </div>
         )}
 
-        <button
-          type="button"
-          data-export-hide=""
-          aria-label="Item actions"
-          aria-haspopup="menu"
-          aria-expanded={tile.isMenuOpen}
-          onClick={(e) => tile.openMenu(e, e.currentTarget)}
-          className="absolute top-1 right-1 z-10 flex items-center justify-center w-6 h-6
-                     media-scrim squircle hover:brightness-125 active:scale-95
-                     transition-transform duration-150 affordance touch-target"
-          style={{ borderRadius: "var(--radius-mini)" }}
-        >
-          <MoreHorizontal size={13} strokeWidth={2.5} />
-        </button>
+        {!tile.isAdjusting && (
+          <button
+            type="button"
+            data-export-hide=""
+            aria-label="Item actions"
+            aria-haspopup="menu"
+            aria-expanded={tile.isMenuOpen}
+            onClick={(e) => tile.openMenu(e, e.currentTarget)}
+            className="absolute top-1 right-1 z-10 flex items-center justify-center w-6 h-6
+                       media-scrim squircle hover:brightness-125 active:scale-95
+                       transition-transform duration-150 affordance touch-target"
+            style={{ borderRadius: "var(--radius-mini)" }}
+          >
+            <MoreHorizontal size={13} strokeWidth={2.5} />
+          </button>
+        )}
+
+        {(tile.isOver || tile.isFileDragOver) && (
+          <span
+            aria-hidden
+            className="absolute inset-0 z-20 pointer-events-none"
+            style={{ background: dropTint(), borderRadius: radius }}
+          />
+        )}
 
         {tile.dropPulse > 0 && (
           <span
@@ -153,18 +161,23 @@ export const TierItem = React.memo(function TierItem({
         )}
 
         {tile.isAdjusting && (
-          <AdjustOverlay
-            variant="compact"
-            onPointerDown={tile.adjust.handlePointerDown}
-            onPointerMove={tile.adjust.handlePointerMove}
-            onPointerUp={tile.adjust.handlePointerUp}
-            onPointerCancel={tile.adjust.handlePointerCancel}
-            onCancel={tile.adjust.stop}
-            onSave={() => {
-              tile.adjust.save();
-              tile.clearInteraction();
-            }}
-          />
+          <>
+            <AdjustOverlay
+              onPointerDown={tile.adjust.handlePointerDown}
+              onPointerMove={tile.adjust.handlePointerMove}
+              onPointerUp={tile.adjust.handlePointerUp}
+              onPointerCancel={tile.adjust.handlePointerCancel}
+            />
+            <AdjustControls
+              compact
+              className="absolute inset-x-0 bottom-1 z-40 mx-auto w-max"
+              onCancel={tile.adjust.stop}
+              onSave={() => {
+                tile.adjust.save();
+                tile.clearInteraction();
+              }}
+            />
+          </>
         )}
       </div>
 
@@ -173,6 +186,7 @@ export const TierItem = React.memo(function TierItem({
         onClose={tile.closeMenu}
         actions={tile.actions}
         triggerPoint={tile.anchor}
+        separators="explicit"
       />
 
       <input

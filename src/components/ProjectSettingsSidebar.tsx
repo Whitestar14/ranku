@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { Eraser, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Eraser } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import { useShallow } from "zustand/react/shallow";
 import { projectTypeMeta } from "@/constants/projectTypes";
 import { PixelText } from "@/components/pixel/PixelText";
+import { pixelIcon } from "@/components/pixel/PixelIcon";
 import { MarqueeText } from "@/components/ui/MarqueeText";
+import { PopoverMenu } from "@/components/ui/PopoverMenu";
+import { Button } from "@/components/ui/Button";
 
 import { DimensionsSection } from "./settings/DimensionsSection";
 import { AppearanceSection } from "./settings/AppearanceSection";
@@ -13,21 +16,115 @@ import { VisibilitySection } from "./settings/VisibilitySection";
 
 import { motion as motionPreset } from "@/lib/motion";
 import { resolveBoardStyle } from "@/utils/boardStyle";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
+import {
+  useProjectDeletion,
+  type RequestConfirm,
+} from "@/hooks/useProjectDeletion";
 
-export interface GridSettingsSidebarProps {
+export interface ProjectSettingsSidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  requestConfirm: (title: string, message: string, action: () => void) => void;
+  requestConfirm: RequestConfirm;
 }
 
-const RAIL_MIN = 248;
-const RAIL_MAX = 432;
+const TrashIcon = pixelIcon("trash");
+
+const RAIL_MIN = 260;
+const RAIL_MAX = 372;
 const RAIL_DEFAULT = 320;
+/** Releasing the grip below this width closes the rail. */
+const RAIL_SNAP_CLOSE = 259;
+const RAIL_DRAG_FLOOR = 220;
 
 const clampRail = (width: number) =>
   Math.max(RAIL_MIN, Math.min(RAIL_MAX, Math.round(width)));
 
-export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
+const isMobileViewport = () =>
+  typeof window !== "undefined" &&
+  window.matchMedia("(max-width: 767px)").matches;
+
+/* ------------------------------------------------------------------ */
+/*  Project actions menu                                              */
+/* ------------------------------------------------------------------ */
+
+interface ProjectActionsMenuProps {
+  onRename: () => void;
+  onClearAll: () => void;
+  onDelete: () => void;
+  canDelete: boolean;
+}
+
+const ProjectActionsMenu: React.FC<ProjectActionsMenuProps> = ({
+  onRename,
+  onClearAll,
+  onDelete,
+  canDelete,
+}) => {
+  const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  const handleOpen = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setAnchor({ x: rect.right, y: rect.bottom });
+    setOpen(true);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    setAnchor(null);
+  };
+
+  return (
+    <>
+      <Button
+        ref={triggerRef}
+        variant="ghost"
+        size="sm"
+        iconOnly
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Project actions"
+        onClick={() => (open ? handleClose() : handleOpen())}
+        className="-my-1.5 -mr-1 md:my-0 md:mr-0"
+      >
+        <MoreHorizontal size={18} strokeWidth={2.2} />
+      </Button>
+
+      <PopoverMenu
+        isOpen={open}
+        onClose={handleClose}
+        returnFocusRef={triggerRef}
+        ariaLabel="Project actions"
+        separators="explicit"
+        triggerPoint={
+          anchor ? { ...anchor, anchor: "right", prefer: "below" } : null
+        }
+        actions={[
+          { label: "Rename", icon: Pencil, onClick: onRename },
+          { label: "Clear All Items", icon: Eraser, onClick: onClearAll },
+          {
+            label: "Delete Project",
+            icon: TrashIcon,
+            onClick: onDelete,
+            variant: "danger",
+            disabled: !canDelete,
+            hint: canDelete ? undefined : "Last project can't be deleted",
+            separator: true,
+          },
+        ]}
+      />
+    </>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+/*  Sidebar                                                            */
+/* ------------------------------------------------------------------ */
+
+export const ProjectSettingsSidebar: React.FC<ProjectSettingsSidebarProps> = ({
   isOpen,
   onClose,
   requestConfirm,
@@ -41,13 +138,19 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
     (s) => s.preferences.railWidth ?? RAIL_DEFAULT,
   );
   const updatePreferences = useStore((s) => s.updatePreferences);
-  const [railWidth, setRailWidth] = useState(storedRailWidth);
+  const [railWidth, setRailWidth] = useState(() => clampRail(storedRailWidth));
+  // Width transitions stay off until the persisted width has painted.
+  const [hydrated, setHydrated] = useState(() =>
+    useStore.persist.hasHydrated(),
+  );
+  const [animateWidth, setAnimateWidth] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [dragWidth, setDragWidth] = useState(railWidth);
+  const [snapClose, setSnapClose] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const titleInputRef = useRef<HTMLInputElement>(null);
   const asideRef = useRef<HTMLElement>(null);
-  const readoutRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     document.documentElement.toggleAttribute("data-sidebar-open", isOpen);
@@ -56,7 +159,31 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
     };
   }, [isOpen]);
 
-  useEffect(() => setRailWidth(storedRailWidth), [storedRailWidth]);
+  useEffect(() => {
+    const unsubscribe = useStore.persist.onFinishHydration(() =>
+      setHydrated(true),
+    );
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (hydrated) {
+      const frame = requestAnimationFrame(() => setAnimateWidth(true));
+      return () => cancelAnimationFrame(frame);
+    }
+    const timer = window.setTimeout(() => setHydrated(true), 1500);
+    return () => window.clearTimeout(timer);
+  }, [hydrated]);
+
+  useEffect(() => setRailWidth(clampRail(storedRailWidth)), [storedRailWidth]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--rail-width", `${railWidth}px`);
+    return () => {
+      root.style.removeProperty("--rail-width");
+    };
+  }, [railWidth]);
 
   useEffect(() => {
     if (!isRenaming) return;
@@ -64,6 +191,18 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
     titleInputRef.current?.select();
   }, [isRenaming]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || isRenaming) return;
+      if (document.querySelector('[role="menu"], [role="listbox"]')) return;
+      onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isOpen, isRenaming, onClose]);
+
+  useFocusTrap(asideRef, isOpen && isMobileViewport());
   const commitResize = useCallback(
     (width: number) => {
       const next = clampRail(width);
@@ -74,10 +213,8 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
   );
 
   const startResize = (e: React.PointerEvent) => {
-    if (!isOpen || window.matchMedia("(max-width: 767px)").matches) return;
+    if (!isOpen || isMobileViewport()) return;
     e.preventDefault();
-    /* Capture is a nicety (it keeps the drag alive over the board); a pointer
-       that is already gone must not abort the whole gesture. */
     try {
       e.currentTarget.setPointerCapture?.(e.pointerId);
     } catch {
@@ -87,8 +224,11 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
     const startX = e.clientX;
     const startWidth = railWidth;
     let next = startWidth;
+    let armed = false;
     const asideEl = asideRef.current;
     setIsResizing(true);
+    setDragWidth(startWidth);
+    setSnapClose(false);
     const previousCursor = document.body.style.cursor;
     const previousSelect = document.body.style.userSelect;
     document.body.style.cursor = "col-resize";
@@ -96,34 +236,53 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
 
     const paintWidth = (width: number) => {
       if (asideEl) asideEl.style.width = `min(${width}px, 86vw)`;
-      if (readoutRef.current) readoutRef.current.textContent = `${width}px`;
     };
     const onMove = (ev: PointerEvent) => {
-      const value = clampRail(startWidth + ev.clientX - startX);
+      const raw = Math.round(startWidth + ev.clientX - startX);
+      const value = Math.min(RAIL_MAX, Math.max(RAIL_DRAG_FLOOR, raw));
+      const nowArmed = raw <= RAIL_SNAP_CLOSE;
+      if (nowArmed !== armed) {
+        armed = nowArmed;
+        setSnapClose(armed);
+      }
       if (value === next) return;
       next = value;
-      paintWidth(next);
+      setDragWidth(value);
+      paintWidth(value);
     };
-    const onUp = () => {
+    const finish = (commit: boolean) => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
+      window.removeEventListener("pointercancel", onCancel);
       document.body.style.cursor = previousCursor;
       document.body.style.userSelect = previousSelect;
       setIsResizing(false);
-      /* React owns the width again from here; its style prop carries the same
-         value, so the hand-off is invisible. */
-      setRailWidth(next);
-      updatePreferences({ railWidth: next });
+      setSnapClose(false);
+
+      if (!commit) {
+        paintWidth(startWidth);
+        return;
+      }
+      if (armed) {
+        onClose();
+        return;
+      }
+      const value = clampRail(next);
+      setRailWidth(value);
+      updatePreferences({ railWidth: value });
     };
+    const onUp = () => finish(true);
+    const onCancel = () => finish(false);
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
+    window.addEventListener("pointercancel", onCancel);
   };
+
+  const requestProjectDelete = useProjectDeletion(requestConfirm);
 
   if (!activeRank) return null;
 
-  const { config, style, type: projectType } = activeRank;
+  const { config, type: projectType } = activeRank;
   const board = resolveBoardStyle(activeRank);
 
   const meta = projectTypeMeta(projectType);
@@ -137,20 +296,14 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
   const handleClearAll = () => {
     requestConfirm(
       projectType === "tierlist" ? "Clear all tiers?" : "Clear this board?",
-      "Every image on it goes back to the Library. Nothing is deleted permanently.",
+      "Every image returns to the Library. Re-add it to the board when you want to.",
       () => {
         useStore.getState().handleClearAll();
       },
     );
   };
 
-  const handleDeleteProject = () => {
-    requestConfirm(
-      `Delete "${activeRank.title}"?`,
-      "The project and everything on it will be removed. This cannot be undone.",
-      () => useStore.getState().handleDeleteRank(activeRank.id),
-    );
-  };
+  const handleDeleteProject = () => requestProjectDelete([activeRank.id]);
 
   const startRename = () => {
     setDraftTitle(activeRank.title);
@@ -175,6 +328,7 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
 
       <aside
         ref={asideRef}
+        tabIndex={-1}
         inert={!isOpen || undefined}
         aria-label="Project settings"
         className={`
@@ -183,7 +337,8 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
           fixed top-14 bottom-0 left-0
           md:relative md:top-auto md:bottom-auto md:left-auto
           rounded-r-panel md:rounded-none
-          transition-[width,opacity] duration-240 ease-emphasized
+          ${animateWidth ? "transition-[width,opacity] duration-240 ease-emphasized" : "transition-none"}
+          outline-none
           ${isOpen ? "rail-elevation" : ""}
           ${isResizing ? "select-none" : ""}
         `}
@@ -201,7 +356,7 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
         }}
       >
         <div className="w-full h-full flex flex-col">
-          <div className="flex items-center gap-2 px-2.5 py-2.5 shrink-0 border-b border-hairline bg-[var(--color-rail)]">
+          <div className="flex items-center gap-2 px-2.5 py-2.5 shrink-0 border-b border-hairline bg-rail">
             <span
               className="grid place-items-center w-8 h-8 rounded-[9px] squircle shrink-0"
               style={{
@@ -212,12 +367,11 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
               <TypeIcon size={16} strokeWidth={2.1} />
             </span>
 
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              {/* Metadata sits above the title, never beside it: the project
-                  name is the thing being edited, the type is a label. */}
+            <div className="flex min-w-0 flex-1 flex-col">
               <PixelText
                 text={meta.longLabel}
                 height={7}
+                fit
                 className="block text-muted/75"
               />
 
@@ -238,62 +392,20 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
                                focus-visible:focus-ring"
                   />
                 ) : (
-                  /* The title is a button, but a quiet one: renaming is an
-                     occasional act, so the affordance only appears on hover. */
-                  <button
-                    type="button"
-                    onClick={startRename}
-                    aria-label={`Rename ${activeRank.title}`}
-                    className="marquee-host -mx-1.5 flex min-w-0 flex-1 items-center
-                               rounded-chip px-1.5 text-left outline-none
-                               transition-colors hover:bg-hover focus-visible:focus-ring"
-                  >
+                  <div className="marquee-host -mx-1.5 flex min-w-0 flex-1 items-center rounded-chip px-1.5">
                     <MarqueeText
                       text={activeRank.title}
                       className="min-w-0 flex-1 text-headline font-semibold text-text"
                     />
-                  </button>
+                  </div>
                 )}
 
-                <div className="ml-auto flex shrink-0 items-center gap-0.5">
-                  <button
-                    type="button"
-                    onClick={handleClearAll}
-                    title={
-                      projectType === "tierlist"
-                        ? "Clear all tiers"
-                        : "Clear board"
-                    }
-                    aria-label={
-                      projectType === "tierlist"
-                        ? "Clear all tiers"
-                        : "Clear board"
-                    }
-                    className="grid h-8 w-8 place-items-center rounded-full text-muted
-                               transition-colors duration-150 hover:bg-hover hover:text-text
-                               focus-visible:focus-ring"
-                  >
-                    <Eraser size={16} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeleteProject}
-                    disabled={rankCount <= 1}
-                    title={
-                      rankCount <= 1
-                        ? "You can't delete the last project"
-                        : "Delete project"
-                    }
-                    aria-label="Delete project"
-                    className="grid h-8 w-8 place-items-center rounded-full text-muted
-                               transition-colors duration-150 hover:bg-destructive/10
-                               hover:text-destructive focus-visible:focus-ring
-                               disabled:cursor-not-allowed disabled:opacity-35
-                               disabled:hover:bg-transparent disabled:hover:text-muted"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
+                <ProjectActionsMenu
+                  onRename={startRename}
+                  onClearAll={handleClearAll}
+                  onDelete={handleDeleteProject}
+                  canDelete={rankCount > 1}
+                />
               </div>
             </div>
           </div>
@@ -321,7 +433,6 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
               <AppearanceSection
                 projectType={projectType}
                 aspectRatio={board.aspectRatio}
-                style={style as "card" | "seamless"}
                 borderless={board.borderless}
                 gap={board.gap}
                 borderRadius={board.radius}
@@ -350,18 +461,14 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
           />
         </div>
 
-        {/* Live width readout while dragging: the rail has no other place to
-            show a number, and "is it 320 or 326?" is the only question during
-            a resize. */}
         {isResizing && (
           <div
-            ref={readoutRef}
-            aria-hidden
-            className="pointer-events-none absolute bottom-4 right-4 z-30 rounded-chip
+            aria-live="polite"
+            className={`pointer-events-none absolute bottom-4 right-4 z-30 rounded-chip
                        material-thick px-2 py-1 text-caption-1 font-semibold
-                       tabular-nums text-text"
+                       tabular-nums ${snapClose ? "text-destructive" : "text-text"}`}
           >
-            {railWidth}px
+            {snapClose ? "Release to close" : `${dragWidth}px`}
           </div>
         )}
 
@@ -390,20 +497,24 @@ export const GridSettingsSidebar: React.FC<GridSettingsSidebarProps> = ({
             }
           }}
           title="Drag to resize (double-click to reset)"
-          /* A 6px visual line inside a 12px hit area: wide enough for a thumb
-             on a trackpad, quiet enough not to look like a border. */
           className={`group/grip absolute inset-y-0 right-0 z-20 hidden w-3 cursor-ew-resize
                       touch-none items-center justify-center outline-none
                       focus-visible:ring-2 focus-visible:ring-primary/40 md:flex ${
-                        isResizing ? "bg-primary/5" : ""
+                        snapClose
+                          ? "bg-destructive/10"
+                          : isResizing
+                            ? "bg-primary/5"
+                            : ""
                       }`}
         >
           <span
             aria-hidden
             className={`h-12 w-0.5 rounded-full transition-colors duration-150 ${
-              isResizing
-                ? "bg-primary"
-                : "bg-transparent group-hover/grip:bg-primary/40 group-focus-visible/grip:bg-primary/60"
+              snapClose
+                ? "bg-destructive"
+                : isResizing
+                  ? "bg-primary"
+                  : "bg-[var(--material-hairline)] group-hover/grip:bg-primary/40 group-focus-visible/grip:bg-primary/60"
             }`}
           />
         </div>

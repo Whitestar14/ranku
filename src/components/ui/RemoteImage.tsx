@@ -1,10 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   imageCandidates,
   originOf,
   originPreference,
+  rememberOriginPreference,
+  reportProxyFailure,
+  reportProxySuccess,
 } from "@/utils/imageProxy";
 import { dominantColor, subscribeDominantColor } from "@/utils/dominantColor";
+import { boundCache } from "@/utils/lru";
+import { imageKey } from "@/utils/imageKey";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
 
 export interface RemoteImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
@@ -13,17 +18,72 @@ export interface RemoteImageProps extends React.ImgHTMLAttributes<HTMLImageEleme
   fallback?: React.ReactNode;
   /** Suppress the loading placeholder (for places that draw their own). */
   noPlaceholder?: boolean;
+  /**
+   * Sample the image and tint its loading sheen. Decoding a second copy for a
+   * colour is only worth it on large board tiles, not dock or search thumbnails.
+   */
+  colorPlaceholder?: boolean;
 }
 
-/** The candidate index that last loaded for a given origin. */
 const originIndex = originPreference;
 
-/** source → the candidate URL that actually worked. */
+/** How long a proxy gets before the CDN is asked directly. */
+const PROXY_TIMEOUT_MS = 2_200;
+const DIRECT_TIMEOUT_MS = 12_000;
+
+const CACHE_LIMIT = 400;
 const resolvedSrc = new Map<string, string>();
-/** source → bytes are already decoded, so there is nothing to wait for. */
 const loadedSrc = new Set<string>();
-/** source → every candidate failed; do not ask again this session. */
-const failedSrc = new Set<string>();
+const failedSrc = new Map<string, number>();
+
+/** A failure is a hint, not a verdict: remounting after this retries. */
+const FAILURE_TTL = 20_000;
+const RETRY_AFTER = 15_000;
+
+const cacheCandidateUrl = (key: string, url: string) => {
+  resolvedSrc.set(key, url);
+  boundCache(resolvedSrc, CACHE_LIMIT);
+};
+
+const cacheLoaded = (key: string) => {
+  loadedSrc.add(key);
+  boundCache(loadedSrc, CACHE_LIMIT);
+};
+
+const cacheFailed = (key: string) => {
+  failedSrc.set(key, Date.now());
+  boundCache(failedSrc, CACHE_LIMIT);
+};
+
+const failedRecently = (key: string) => {
+  const at = failedSrc.get(key);
+  if (at === undefined) return false;
+  if (Date.now() - at > FAILURE_TTL) {
+    failedSrc.delete(key);
+    return false;
+  }
+  return true;
+};
+
+const preferredIndex = (
+  key: string,
+  candidates: ReturnType<typeof imageCandidates>,
+  origin: string | null,
+) => {
+  const cached = resolvedSrc.get(key);
+  if (cached) {
+    const found = candidates.findIndex((candidate) => candidate.url === cached);
+    if (found >= 0) return found;
+  }
+  const remembered = origin ? originIndex.get(origin) : undefined;
+  if (remembered) {
+    const found = candidates.findIndex(
+      (candidate) => candidate.key === remembered,
+    );
+    if (found >= 0) return found;
+  }
+  return 0;
+};
 
 export const RemoteImage: React.FC<RemoteImageProps> = ({
   src,
@@ -32,72 +92,84 @@ export const RemoteImage: React.FC<RemoteImageProps> = ({
   onLoad,
   className = "",
   noPlaceholder = false,
+  colorPlaceholder = false,
   style,
   ...props
 }) => {
+  const key = useMemo(() => imageKey(src), [src]);
   const candidates = useMemo(() => imageCandidates(src), [src]);
   const origin = useMemo(() => (src ? originOf(src) : null), [src]);
-
-  const cachedUrl = resolvedSrc.get(src);
-  const startIndex = cachedUrl
-    ? Math.max(
-        0,
-        candidates.findIndex((c) => c.url === cachedUrl),
-      )
-    : origin
-      ? (originIndex.get(origin) ?? 0)
-      : 0;
+  const startIndex = useMemo(
+    () => preferredIndex(key, candidates, origin),
+    [key, candidates, origin],
+  );
 
   const [index, setIndex] = useState(startIndex);
-  const [failed, setFailed] = useState(() => failedSrc.has(src));
-  // Seeded from the cache so a remount paints the image on its first frame
-  // instead of fading in from nothing.
-  const [loaded, setLoaded] = useState(() => loadedSrc.has(src));
+  const [failed, setFailed] = useState(() => failedRecently(key));
+  const [loaded, setLoaded] = useState(() => loadedSrc.has(key));
   const [placeholderColor, setPlaceholderColor] = useState<string | undefined>(
-    () => (loadedSrc.has(src) ? undefined : dominantColor(src)),
+    () =>
+      colorPlaceholder && !loadedSrc.has(key) ? dominantColor(src) : undefined,
   );
   const imgRef = useRef<HTMLImageElement>(null);
 
-  // The sample finishes asynchronously, so the placeholder arrives a frame or
-  // two after mount and fades in under the sheen.
   useEffect(() => {
-    if (loadedSrc.has(src)) return;
-    return subscribeDominantColor(src, setPlaceholderColor);
-  }, [src]);
-
-  const candidate = candidates[Math.min(index, candidates.length - 1)];
+    setIndex(startIndex);
+    setFailed(failedRecently(key));
+    setLoaded(loadedSrc.has(key));
+  }, [key, startIndex]);
 
   useEffect(() => {
-    if (loadedSrc.has(src)) {
-      setLoaded(true);
-      setFailed(failedSrc.has(src));
+    if (!colorPlaceholder || !src || loadedSrc.has(key)) {
+      setPlaceholderColor(undefined);
       return;
     }
-    const cached = resolvedSrc.get(src);
-    setIndex(
-      cached
-        ? Math.max(
-            0,
-            candidates.findIndex((c) => c.url === cached),
-          )
-        : origin
-          ? (originIndex.get(origin) ?? 0)
-          : 0,
-    );
-    setFailed(false);
-    setLoaded(false);
-  }, [src, origin, candidates]);
+    setPlaceholderColor(dominantColor(src));
+    return subscribeDominantColor(src, setPlaceholderColor);
+  }, [colorPlaceholder, key, src]);
 
-  /* A cached image can complete before React attaches `onLoad`, which would
-     leave it stuck at opacity 0 forever. `complete` + a natural size is the
-     only reliable way to ask whether the bytes are already there. */
   useEffect(() => {
     const img = imgRef.current;
     if (img && img.complete && img.naturalWidth > 0) {
-      loadedSrc.add(src);
+      cacheLoaded(key);
       setLoaded(true);
     }
-  }, [src, candidate?.url]);
+  }, [key, candidates]);
+
+  const candidate = candidates[index];
+
+  const advance = useCallback(() => {
+    if (index + 1 < candidates.length) setIndex(index + 1);
+    else {
+      cacheFailed(key);
+      setFailed(true);
+    }
+  }, [index, candidates.length, key]);
+
+  /* Give a transient failure a second chance without needing a reload. */
+  useEffect(() => {
+    if (!failed) return;
+    const timer = window.setTimeout(() => {
+      failedSrc.delete(key);
+      setIndex(startIndex);
+      setFailed(false);
+    }, RETRY_AFTER);
+    return () => window.clearTimeout(timer);
+  }, [failed, key, startIndex]);
+
+  /* A dead proxy answers only after the browser gives up, so give every
+     candidate a deadline of its own and move on. */
+  useEffect(() => {
+    if (loaded || failed || !candidate) return;
+    const timer = window.setTimeout(
+      () => {
+        if (candidate.viaProxy) reportProxyFailure(candidate.key);
+        advance();
+      },
+      candidate.viaProxy ? PROXY_TIMEOUT_MS : DIRECT_TIMEOUT_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [candidate, index, candidates.length, key, loaded, failed, advance]);
 
   if (!src || failed || !candidate) {
     if (fallback !== undefined) return <>{fallback}</>;
@@ -107,9 +179,6 @@ export const RemoteImage: React.FC<RemoteImageProps> = ({
         aria-label="Image unavailable"
         role="img"
       >
-        {/* Sized by its own box, not by a fixed px value: the same failure can
-            be a 112px dock card or a 40px thumbnail, and a full "No preview"
-            caption in the latter would be a smudge. */}
         <span className="flex flex-col items-center gap-1 px-1 text-center leading-none">
           <PixelIcon name="broken" size={16} className="shrink-0" />
           <span className="hidden text-caption-2 font-medium leading-none select-none @[64px]:block">
@@ -131,34 +200,26 @@ export const RemoteImage: React.FC<RemoteImageProps> = ({
         className="absolute inset-0 h-full w-full object-cover pointer-events-none transition-opacity duration-300 ease-standard"
         style={{
           ...style,
-          // `style` may already carry a transform/object-position, so only the
-          // opacity is owned here.
           opacity: loaded ? (style?.opacity ?? 1) : 0,
         }}
         onLoad={(event) => {
-          if (origin) originIndex.set(origin, index);
-          if (candidate) resolvedSrc.set(src, candidate.url);
-          loadedSrc.add(src);
+          if (origin) rememberOriginPreference(origin, candidate.key);
+          if (candidate.viaProxy) reportProxySuccess(candidate.key);
+          if (candidates.length > 1) cacheCandidateUrl(key, candidate.url);
+          cacheLoaded(key);
           setLoaded(true);
           onLoad?.(event);
         }}
         onError={(event) => {
-          if (index + 1 < candidates.length) {
-            setIndex(index + 1);
-            return;
-          }
-          failedSrc.add(src);
-          setFailed(true);
+          if (candidate.viaProxy) reportProxyFailure(candidate.key);
+          advance();
           onError?.(event);
         }}
       />
-      {/* The sheen doubles as the placeholder: once the image's dominant
-          colour is known it becomes the sheen background, so the tile shows a
-          wash of its own artwork with the shimmer running over it rather than
-          an empty grey box waiting on the network. */}
       {!loaded && !noPlaceholder && (
         <span
           aria-hidden
+          data-export-hide=""
           className="img-sheen"
           style={
             placeholderColor ? { backgroundColor: placeholderColor } : undefined

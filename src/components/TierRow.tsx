@@ -7,7 +7,6 @@ import {
   ChevronUp,
   ChevronDown,
   Eraser,
-  Trash2,
 } from "lucide-react";
 import { TierRow as TierRowData } from "@/types";
 import { useStore } from "@/store/useStore";
@@ -15,7 +14,8 @@ import { PopoverMenu } from "./ui/PopoverMenu";
 import { Modal } from "./ui/Modal";
 import { Input } from "./ui/Input";
 import { Button } from "./ui/Button";
-import { ColorPicker, ColorWheelSwatch } from "./ui/ColorPicker";
+import { pixelIcon } from "./pixel/PixelIcon";
+import { SwatchGroup, type SwatchOption } from "./ui/SwatchGroup";
 import { TierItem, TierRail } from "./TierItem";
 import { TierLabel } from "./tier/TierLabel";
 import {
@@ -30,6 +30,11 @@ import { TIER_COLORS } from "@/constants/tierColors";
 import { normalizeTierColor } from "@/utils/dominantColor";
 import { getContrastColor } from "@/theme/palettes";
 import { layoutMotion } from "@/lib/motion";
+
+const TrashIcon = pixelIcon("trash");
+const TIER_SWATCH_OPTIONS: readonly SwatchOption[] = TIER_COLORS.map(
+  (color) => ({ value: color, label: `Tier colour ${color}` }),
+);
 
 interface TierRowProps {
   row: TierRowData;
@@ -60,6 +65,7 @@ export const TierRow = React.memo(function TierRow({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
   const [draftLabel, setDraftLabel] = useState(row.label);
+  const [draftColor, setDraftColor] = useState(row.color);
 
   const labelRef = useRef<HTMLButtonElement>(null);
   const textColor = getContrastColor(row.color);
@@ -107,8 +113,12 @@ export const TierRow = React.memo(function TierRow({
   const railInset = tierGapFor(spacing);
   const labelCap = Math.min(46, Math.round(height * 0.46));
 
-  const saveLabel = () => {
-    onUpdate(row.id, { label: (draftLabel || "?").trim() || "?" });
+  /* The editor is a draft: the board behind it only changes on save. */
+  const saveEditor = () => {
+    onUpdate(row.id, {
+      label: (draftLabel || "?").trim() || "?",
+      color: normalizeTierColor(draftColor),
+    });
     setIsEditorOpen(false);
   };
 
@@ -149,6 +159,7 @@ export const TierRow = React.memo(function TierRow({
             return;
           }
           setDraftLabel(row.label);
+          setDraftColor(row.color);
           setIsEditorOpen(true);
         }}
         aria-label={`Edit tier ${row.label}`}
@@ -241,7 +252,7 @@ export const TierRow = React.memo(function TierRow({
           },
           {
             label: "Delete Tier",
-            icon: Trash2,
+            icon: TrashIcon,
             variant: "danger",
             onClick: () => onDelete(index),
           },
@@ -254,15 +265,15 @@ export const TierRow = React.memo(function TierRow({
         onClose={() => setIsEditorOpen(false)}
         title="Edit Tier"
         className="max-w-sm"
-        contentClassName="flex flex-col gap-5"
         footer={
           <>
-            <Button fullWidth size="lg" onClick={saveLabel}>
+            <Button fullWidth size="lg" shape="pill" onClick={saveEditor}>
               Save
             </Button>
             <Button
               fullWidth
               size="lg"
+              shape="pill"
               variant="gray"
               onClick={() => setIsEditorOpen(false)}
             >
@@ -271,81 +282,59 @@ export const TierRow = React.memo(function TierRow({
           </>
         }
       >
-        <div className="flex items-center gap-3">
-          <div
-            className="relative w-16 h-16 shrink-0 overflow-hidden rounded-chip"
-            style={{ backgroundColor: row.color }}
-          >
-            <TierLabel label={draftLabel || "?"} color={textColor} cap={28} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <label
-              htmlFor={`tier-label-${row.id}`}
-              className="block text-caption-2 font-semibold text-muted uppercase tracking-[0.04em] mb-1.5"
+        <form
+          className="flex flex-col gap-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveEditor();
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="relative w-16 h-16 shrink-0 overflow-hidden rounded-chip"
+              style={{ backgroundColor: draftColor }}
             >
-              Tier Name
-            </label>
-            <Input
-              id={`tier-label-${row.id}`}
-              value={draftLabel}
-              maxLength={24}
-              onChange={(e) => setDraftLabel(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") saveLabel();
+              <TierLabel
+                label={draftLabel || "?"}
+                color={getContrastColor(draftColor)}
+                cap={28}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <label
+                htmlFor={`tier-label-${row.id}`}
+                className="block text-caption-2 font-semibold text-muted uppercase tracking-[0.04em] mb-1.5"
+              >
+                Tier Name
+              </label>
+              <Input
+                id={`tier-label-${row.id}`}
+                value={draftLabel}
+                maxLength={24}
+                autoFocus
+                onChange={(e) => setDraftLabel(e.target.value)}
+                placeholder="S"
+              />
+            </div>
+          </div>
+
+          <div>
+            <span className="block text-caption-2 font-semibold text-muted uppercase tracking-[0.04em] mb-2">
+              Colour
+            </span>
+            <SwatchGroup
+              ariaLabel="Tier colour"
+              options={TIER_SWATCH_OPTIONS}
+              value={draftColor}
+              onChange={setDraftColor}
+              custom={{
+                label: "Custom tier colour",
+                value: draftColor,
+                onChange: setDraftColor,
               }}
-              placeholder="S"
             />
           </div>
-        </div>
-
-        <div>
-          <span className="block text-caption-2 font-semibold text-muted uppercase tracking-[0.04em] mb-2">
-            Colour
-          </span>
-          <div className="flex flex-wrap gap-2.5">
-            {TIER_COLORS.map((color) => {
-              const active = row.color.toLowerCase() === color.toLowerCase();
-              return (
-                <button
-                  key={color}
-                  type="button"
-                  aria-label={`Set tier colour ${color}`}
-                  aria-pressed={active}
-                  onClick={() =>
-                    onUpdate(row.id, { color: normalizeTierColor(color) })
-                  }
-                  className="w-8 h-8 rounded-full transition-transform duration-150 active:scale-90"
-                  style={{
-                    backgroundColor: color,
-                    boxShadow: active
-                      ? "0 0 0 2px var(--color-background), 0 0 0 4px var(--color-text)"
-                      : "inset 0 0 0 0.5px var(--material-hairline)",
-                  }}
-                />
-              );
-            })}
-
-            <ColorPicker
-              label="Custom tier colour"
-              value={row.color}
-              onChange={(v) =>
-                onUpdate(row.id, { color: normalizeTierColor(v) })
-              }
-              className="w-8 h-8 rounded-full"
-              trigger={
-                <ColorWheelSwatch
-                  size={32}
-                  value={row.color}
-                  active={
-                    !TIER_COLORS.some(
-                      (c) => c.toLowerCase() === row.color.toLowerCase(),
-                    )
-                  }
-                />
-              }
-            />
-          </div>
-        </div>
+        </form>
       </Modal>
     </motion.div>
   );

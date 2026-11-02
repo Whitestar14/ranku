@@ -3,6 +3,7 @@ import { RotateCcw, Database, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { PixelWordmark } from "@/components/app/PixelWordmark";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
+import { logError } from "@/utils/log";
 
 interface Props {
   children?: ReactNode;
@@ -28,7 +29,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Uncaught error:", error, errorInfo);
+    logError("Uncaught error:", error, errorInfo);
   }
 
   private retry = () => {
@@ -96,6 +97,7 @@ export class ErrorBoundary extends Component<Props, State> {
                     variant="danger"
                     size="lg"
                     fullWidth
+                    shape="pill"
                     onClick={this.resetData}
                   >
                     Erase everything
@@ -104,6 +106,7 @@ export class ErrorBoundary extends Component<Props, State> {
                     variant="gray"
                     size="lg"
                     fullWidth
+                    shape="pill"
                     icon={<ChevronLeft size={16} />}
                     onClick={() => this.setState({ isConfirmingReset: false })}
                   >
@@ -116,6 +119,7 @@ export class ErrorBoundary extends Component<Props, State> {
                     variant="filled"
                     size="lg"
                     fullWidth
+                    shape="pill"
                     icon={<RotateCcw size={17} />}
                     onClick={this.retry}
                   >
@@ -125,6 +129,7 @@ export class ErrorBoundary extends Component<Props, State> {
                     variant="gray"
                     size="lg"
                     fullWidth
+                    shape="pill"
                     icon={<Database size={16} />}
                     onClick={() => this.setState({ isConfirmingReset: true })}
                   >

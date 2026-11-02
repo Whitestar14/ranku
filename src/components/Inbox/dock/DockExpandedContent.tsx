@@ -21,25 +21,12 @@ interface DockExpandedContentProps {
   onOpenAbout?: () => void;
 }
 
-/**
- * The panel that fills the dock while it is open.
- *
- * Every surface used to sit behind its own thin wrapper that existed only to
- * forward props — `InboxStashView`, `InboxSearchView`, and two separate
- * headers. Each surface now takes the dock controller directly, which is what
- * makes the prop lists here short enough to read at a glance.
- */
 export const DockExpandedContent: React.FC<DockExpandedContentProps> = ({
   ctrl,
   autoFocusSearch,
   requestConfirm,
   onOpenAbout,
 }) => {
-  const commitRename = (colId: string) => {
-    if (ctrl.tempName.trim()) ctrl.renameCollection(colId, ctrl.tempName);
-    ctrl.setEditingNameId(null);
-  };
-
   const startRename = (id: string, name: string) => {
     ctrl.setEditingNameId(id);
     ctrl.setTempName(name);
@@ -47,7 +34,7 @@ export const DockExpandedContent: React.FC<DockExpandedContentProps> = ({
 
   if (ctrl.dockSurface === "settings") {
     return (
-      <div className="flex flex-col w-full h-full grow-0 shrink-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+      <div className="flex flex-col w-full h-full grow-0 shrink-0 animate-in fade-in duration-300">
         <DockHeader title="Settings" onCollapse={ctrl.toggleExpand} />
         <SettingsDockPanel
           requestConfirm={requestConfirm}
@@ -58,7 +45,7 @@ export const DockExpandedContent: React.FC<DockExpandedContentProps> = ({
   }
 
   return (
-    <div className="flex flex-col w-full h-full grow-0 shrink-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="flex flex-col w-full h-full grow-0 shrink-0 animate-in fade-in duration-300">
       <DockHeader title="Library" onCollapse={ctrl.toggleExpand}>
         {/* `hug` + Title Case so these read as the same control as every other
             segmented switch in the app. */}
@@ -99,7 +86,7 @@ export const DockExpandedContent: React.FC<DockExpandedContentProps> = ({
               onAddCollection={ctrl.addCollection}
               onStartRename={startRename}
               onTempNameChange={ctrl.setTempName}
-              onCommitRename={commitRename}
+              onCommitRename={ctrl.commitCollectionRename}
               onCancelRename={() => ctrl.setEditingNameId(null)}
             />
           )}

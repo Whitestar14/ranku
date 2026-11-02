@@ -1,7 +1,15 @@
-import React from "react";
+import React, { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Minus, Plus } from "lucide-react";
 import { NumberedSlider, SectionHeader, SettingsCard } from "./SettingsParts";
+import { Input } from "@/components/ui/Input";
 import { ProjectType } from "@/types";
-import { DEFAULT_TIER_ROW_HEIGHT } from "@/utils/boardStyle";
+import {
+  CELL_WIDTH_MAX,
+  CELL_WIDTH_MIN,
+  DEFAULT_CELL_WIDTH,
+  DEFAULT_TIER_ROW_HEIGHT,
+} from "@/utils/boardStyle";
+import { cn } from "@/utils";
 
 interface DimensionsSectionProps {
   projectType: ProjectType;
@@ -14,39 +22,180 @@ interface DimensionsSectionProps {
   onTierRowHeightChange: (v: number) => void;
 }
 
-/** One centred numeric stepper. A grid shows two of them side by side. */
-const NumberInput: React.FC<{
+/* ------------------------------------------------------------------ */
+/*  Stepper row                                                       */
+/* ------------------------------------------------------------------ */
+
+const StepperRow: React.FC<{
   label: string;
   value: number;
   min: number;
   max: number;
   onChange: (v: number) => void;
-}> = ({ label, value, min, max, onChange }) => (
-  <div className="flex-1 flex flex-col gap-1 items-center">
-    <span
-      className="text-caption-2 font-semibold text-muted"
-      style={{ letterSpacing: "0.05em", textTransform: "uppercase" }}
-    >
-      {label}
-    </span>
-    <input
-      type="number"
-      min={min}
-      max={max}
-      value={value}
-      onChange={(e) => onChange(parseInt(e.target.value))}
-      className="text-center font-semibold bg-transparent text-text focus:outline-none w-full text-title-3 tabular-nums"
-    />
-  </div>
-);
+}> = ({ label, value, min, max, onChange }) => {
+  const id = useId();
+  const [draft, setDraft] = useState(String(value));
+  const escapeRef = useRef(false);
 
-/**
- * How big the board is.
- *
- * A grid multiplies `rows` by `cols`; a list uses `rows` directly as its item
- * count. A tier list is measured in tiers, which it adds and removes inline, so
- * its only size control is how tall a row stands.
- */
+  // Adopt external changes (stepper buttons, store updates from elsewhere).
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  const commitValue = useCallback(
+    (raw: number) => {
+      const clamped = Math.max(min, Math.min(max, Math.round(raw)));
+      onChange(clamped);
+      setDraft(String(clamped));
+    },
+    [min, max, onChange],
+  );
+
+  const step = (delta: number) => {
+    const draftNum = Number(draft);
+    const base = Number.isFinite(draftNum) ? draftNum : value;
+    commitValue(base + delta);
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 px-4 py-2.5">
+      <label
+        htmlFor={id}
+        className="flex-1 min-w-0 truncate text-footnote font-medium text-text"
+      >
+        {label}
+      </label>
+
+      <div className="w-12 shrink-0">
+        <Input
+          id={id}
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={(e) => {
+            if (escapeRef.current) {
+              escapeRef.current = false;
+              setDraft(String(value));
+              return;
+            }
+            const parsed = Number(e.currentTarget.value);
+            if (Number.isFinite(parsed)) commitValue(parsed);
+            else setDraft(String(value));
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.currentTarget.blur();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              escapeRef.current = true;
+              e.currentTarget.blur();
+            }
+          }}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          className={cn(
+            "h-8 px-2 text-center",
+            "text-subheadline font-semibold tabular-nums",
+          )}
+        />
+      </div>
+
+      <HoldButton
+        label={`Decrease ${label.toLowerCase()}`}
+        disabled={value <= min}
+        onTick={() => step(-1)}
+      >
+        <Minus size={14} strokeWidth={2.4} />
+      </HoldButton>
+      <HoldButton
+        label={`Increase ${label.toLowerCase()}`}
+        disabled={value >= max}
+        onTick={() => step(1)}
+      >
+        <Plus size={14} strokeWidth={2.4} />
+      </HoldButton>
+    </div>
+  );
+};
+
+/** Circular stepper button */
+const HoldButton: React.FC<{
+  label: string;
+  disabled?: boolean;
+  onTick: () => void;
+  children: React.ReactNode;
+}> = ({ label, disabled, onTick, children }) => {
+  const timeoutRef = useRef<number | undefined>(undefined);
+  const intervalRef = useRef<number | undefined>(undefined);
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
+
+  const stop = useCallback(() => {
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+    if (intervalRef.current) window.clearInterval(intervalRef.current);
+    timeoutRef.current = undefined;
+    intervalRef.current = undefined;
+  }, []);
+
+  useEffect(() => stop, [stop]);
+
+  const start = () => {
+    if (disabledRef.current) return;
+    onTick();
+    timeoutRef.current = window.setTimeout(() => {
+      intervalRef.current = window.setInterval(() => {
+        if (disabledRef.current) {
+          stop();
+          return;
+        }
+        onTick();
+      }, 80);
+    }, 400);
+  };
+
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        start();
+      }}
+      onPointerUp={stop}
+      onPointerCancel={stop}
+      onLostPointerCapture={stop}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onTick();
+        }
+      }}
+      className={cn(
+        "relative grid h-7 w-7 shrink-0 place-items-center rounded-full",
+        "bg-surface-secondary text-text outline-none",
+        "before:absolute before:-inset-2 before:content-[''] before:rounded-full",
+        "transition-colors duration-150",
+        "hover:bg-hover active:bg-surface-secondary",
+        "focus-visible:focus-ring",
+        "disabled:opacity-40 disabled:cursor-not-allowed",
+        "disabled:hover:bg-surface-secondary",
+      )}
+    >
+      {children}
+    </button>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+/*  Section                                                           */
+/* ------------------------------------------------------------------ */
+
 export const DimensionsSection: React.FC<DimensionsSectionProps> = ({
   projectType,
   config,
@@ -62,15 +211,13 @@ export const DimensionsSection: React.FC<DimensionsSectionProps> = ({
       <div className="flex flex-col gap-2.5">
         <SectionHeader>Dimensions</SectionHeader>
         <SettingsCard className="divide-y divide-hairline">
-          {/* Sized by the thing the user is actually looking at. "Row height"
-              described the box; the box exists to size the artwork in it, and
-              nobody opens a tier list wanting to change a row. */}
           <NumberedSlider
             label="Image Size"
             value={tierRowHeight ?? DEFAULT_TIER_ROW_HEIGHT}
             min={56}
             max={180}
             step={4}
+            suffix="px"
             onChange={onTierRowHeightChange}
           />
         </SettingsCard>
@@ -85,42 +232,32 @@ export const DimensionsSection: React.FC<DimensionsSectionProps> = ({
       <SectionHeader>Dimensions</SectionHeader>
 
       <SettingsCard className="divide-y divide-hairline">
-        <div className="px-4 py-3.5 flex items-center gap-3">
-          <NumberInput
-            label={isRanking ? "Rows" : "Items"}
-            value={config.rows}
+        <StepperRow
+          label={isRanking ? "Rows" : "Items"}
+          value={config.rows}
+          min={1}
+          max={50}
+          onChange={onRowsChange}
+        />
+
+        {isRanking && (
+          <StepperRow
+            label="Columns"
+            value={config.cols}
             min={1}
-            max={50}
-            onChange={onRowsChange}
+            max={20}
+            onChange={onColsChange}
           />
+        )}
 
-          {isRanking && (
-            <>
-              <span className="text-muted font-light text-title-2 pb-1">×</span>
-              <NumberInput
-                label="Cols"
-                value={config.cols}
-                min={1}
-                max={20}
-                onChange={onColsChange}
-              />
-            </>
-          )}
-        </div>
-
-        {/* Cell width sizes a grid tile. A list row sizes itself from its
-            aspect ratio, so the slider is a ranking-only control — offering it
-            on a list would be a knob with nothing on the other end. */}
         {isRanking && (
           <NumberedSlider
             label="Cell Width"
-            /* 240 is the width a tile renders at when this has never been set
-               (`resolveBoardStyle` and the ⌘+/⌘− keys both fall back to it), so
-               the slider starts where the board already is. */
-            value={cellWidth ?? 240}
-            min={60}
-            max={300}
+            value={cellWidth ?? DEFAULT_CELL_WIDTH}
+            min={CELL_WIDTH_MIN}
+            max={CELL_WIDTH_MAX}
             step={5}
+            suffix="px"
             onChange={onCellWidthChange}
           />
         )}

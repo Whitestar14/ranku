@@ -1,99 +1,146 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { useShallow } from "zustand/react/shallow";
 import { Plus, Check } from "lucide-react";
 import { useActivityState } from "@/state/activityState";
 import { motion as motionPreset } from "@/lib/motion";
 
+const usePrefersReducedMotion = () => {
+  const query = "(prefers-reduced-motion: reduce)";
+  const [reduced, setReduced] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(query).matches : false,
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia(query);
+    const onChange = (e: MediaQueryListEvent) => setReduced(e.matches);
+    mql.addEventListener?.("change", onChange);
+    return () => mql.removeEventListener?.("change", onChange);
+  }, []);
+  return reduced;
+};
+
+const SUCCESS_COLOR = "var(--color-accent-green, #30d158)";
+
 export const StatusIsland: React.FC<{
   onCreateProject: () => void;
-  /** Disabled when there is no project to copy the schema from. */
   canCreate?: boolean;
 }> = ({ onCreateProject, canCreate = true }) => {
-  const phase = useActivityState((s) => s.phase);
-  const label = useActivityState((s) => s.label);
-  const progress = useActivityState((s) => s.progress);
-  const seq = useActivityState((s) => s.seq);
+  const { phase, label, progress, seq } = useActivityState(
+    useShallow((s) => ({
+      phase: s.phase,
+      label: s.label,
+      progress: s.progress,
+      seq: s.seq,
+    })),
+  );
 
+  const idle = phase === "idle";
   const busy = phase === "busy";
-  const isIdle = phase === "idle";
+  const success = phase === "success";
+  const reduceMotion = usePrefersReducedMotion();
 
-  const description = isIdle ? "New project with this layout" : (label ?? "Working");
+  const description = idle
+    ? "New project with this layout"
+    : (label ?? "Working");
 
   return (
-    <motion.button
-      type="button"
-      onClick={onCreateProject}
-      disabled={busy || !canCreate}
-      aria-live="polite"
-      aria-label={description}
-      title={description}
-      className={`relative shrink-0 grid place-items-center h-8 w-8 rounded-full material-thin overflow-hidden
-                  transition-colors duration-150
-                  ${busy ? "cursor-progress" : "hover:brightness-125"}
-                  ${isIdle ? "text-muted hover:text-text" : "text-text"}`}
-      whileTap={busy ? undefined : { scale: 0.9 }}
-      transition={motionPreset.snappy}
-    >
-      {/* Success: a radial gradient blooming from the centre of the control.
-          Two offset pulses so it reads as a breath rather than a flash. */}
-      {phase === "success" && (
-        <span aria-hidden className="pointer-events-none absolute inset-0">
-          {[0, 1].map((i) => (
+    <div className="relative shrink-0">
+      <div
+        className={`relative grid place-items-center h-8 w-8 touch-target rounded-full
+                    material-thin transition-colors duration-150 ${
+                      idle ? "text-muted" : "text-text"
+                    }`}
+      >
+        {success && !reduceMotion && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 rounded-full overflow-hidden"
+          >
+            {[0, 1].map((i) => (
+              <motion.span
+                key={i}
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: `radial-gradient(circle at 50% 50%,
+                    ${SUCCESS_COLOR} 0%,
+                    color-mix(in srgb, ${SUCCESS_COLOR} 45%, transparent) 34%,
+                    color-mix(in srgb, ${SUCCESS_COLOR} 12%, transparent) 58%,
+                    transparent 76%)`,
+                }}
+                initial={{ opacity: 0, scale: 0.35 }}
+                animate={{ opacity: [0, 1, 0], scale: [0.35, 1, 1.35] }}
+                transition={{
+                  duration: 0.95,
+                  delay: i * 0.14,
+                  ease: [0.22, 0.8, 0.3, 1],
+                  times: [0, 0.4, 1],
+                }}
+              />
+            ))}
             <motion.span
-              key={i}
               className="absolute inset-0 rounded-full"
-              style={{
-                background:
-                  "radial-gradient(circle at 50% 50%, rgba(48,209,88,0.85) 0%, rgba(48,209,88,0.45) 34%, rgba(48,209,88,0.12) 58%, rgba(48,209,88,0) 76%)",
-              }}
-              initial={{ opacity: 0, scale: 0.35 }}
-              animate={{ opacity: [0, 1, 0], scale: [0.35, 1, 1.35] }}
-              transition={{
-                duration: 0.95,
-                delay: i * 0.14,
-                ease: [0.22, 0.8, 0.3, 1],
-                times: [0, 0.4, 1],
-              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: [0, 0.85, 0] }}
+              transition={{ duration: 1.05, ease: "easeOut" }}
+              style={{ boxShadow: `inset 0 0 0 1.5px ${SUCCESS_COLOR}` }}
             />
-          ))}
-          {/* A single, self-lit rim so the shape holds while the bloom fades. */}
-          <motion.span
-            className="absolute inset-0 rounded-full"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: [0, 0.85, 0] }}
-            transition={{ duration: 1.05, ease: "easeOut" }}
-            style={{ boxShadow: "inset 0 0 0 1.5px rgba(48,209,88,0.9)" }}
-          />
-        </span>
-      )}
+          </span>
+        )}
 
-      {/* Cross-fade the glyph so a state change is a transition, not a swap. */}
-      <AnimatePresence mode="popLayout" initial={false}>
-        <motion.span
-          key={`${phase}-${isIdle ? 0 : seq % 2}`}
-          initial={{ opacity: 0, scale: 0.6, rotate: -25 }}
-          animate={{ opacity: 1, scale: 1, rotate: 0 }}
-          exit={{ opacity: 0, scale: 0.6, rotate: 25 }}
-          transition={motionPreset.snappy}
-          className="relative grid place-items-center"
-        >
-          {isIdle ? (
-            <Plus size={16} strokeWidth={2.6} />
-          ) : busy ? (
-            <ProgressRing progress={progress} />
+        <AnimatePresence mode="popLayout" initial={false}>
+          {idle ? (
+            <motion.button
+              key="idle"
+              type="button"
+              onClick={onCreateProject}
+              disabled={!canCreate}
+              aria-label={description}
+              title={description}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              whileTap={busy ? undefined : { scale: 0.9 }}
+              transition={motionPreset.snappy}
+              className="relative z-10 grid h-8 w-8 place-items-center rounded-full
+                         touch-target
+                         text-muted hover:text-text hover:bg-hover
+                         focus-visible:focus-ring active:opacity-70
+                         disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Plus size={18} strokeWidth={2} />
+            </motion.button>
           ) : (
-            <Check size={16} strokeWidth={3} style={{ color: "#30d158" }} />
+            <motion.span
+              key={busy ? `busy-${seq % 2}` : "success"}
+              aria-hidden
+              initial={{ opacity: 0, scale: 0.6, rotate: -25 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, scale: 0.6, rotate: 25 }}
+              transition={{ duration: 0.14, ease: "linear" }}
+              className="relative z-10 grid place-items-center"
+            >
+              {busy ? (
+                <ProgressRing progress={progress} />
+              ) : (
+                <Check
+                  size={18}
+                  strokeWidth={2.4}
+                  style={{ color: SUCCESS_COLOR }}
+                />
+              )}
+            </motion.span>
           )}
-        </motion.span>
-      </AnimatePresence>
-    </motion.button>
+        </AnimatePresence>
+      </div>
+
+      <span className="sr-only" aria-live="polite">
+        {idle ? "" : description}
+      </span>
+    </div>
   );
 };
 
-/**
- * A ring that is determinate when the task can report progress and an endless
- * sweep when it cannot — the same visual language iOS uses for both cases.
- */
 const ProgressRing: React.FC<{ progress?: number }> = ({ progress }) => {
   const radius = 7;
   const circumference = 2 * Math.PI * radius;

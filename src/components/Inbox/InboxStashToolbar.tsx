@@ -1,13 +1,16 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Edit, Layers, Plus, Trash, X, FolderInput } from "lucide-react";
-import { useStore } from "@/store/useStore";
-import { MagnifyItem } from "./MagnifyItem";
+import {
+  CornerDownRight,
+  Edit,
+  FolderInput,
+  Layers,
+  Plus,
+  Trash,
+  X,
+} from "lucide-react";
 import { ScrollRail } from "@/components/ui/ScrollRail";
 import { PopoverMenu } from "@/components/ui/PopoverMenu";
-import { useMagnificationRow } from "@/hooks/useMagnification";
-import { motion as motionPreset } from "@/lib/motion";
-import { useCanHover } from "@/hooks/useCanHover";
 import type { DockCtrl } from "./dock/types";
 
 const chipClass = (active: boolean) =>
@@ -15,47 +18,75 @@ const chipClass = (active: boolean) =>
    transition-colors duration-150 select-none
    ${active ? "bg-primary/15 text-primary" : "text-muted hover:text-text hover:bg-hover"}`;
 
-export const InboxStashToolbar: React.FC<{ ctrl: DockCtrl }> = ({ ctrl }) => {
-  const mag = useMagnificationRow();
-  const canHover = useCanHover();
-  const selected = ctrl.selectedItemIds;
+const actionClass =
+  "flex items-center gap-1.5 text-footnote font-medium px-3 sm:px-4 py-1.5 rounded-full transition-colors";
 
-  /** Clearing a selection has to clear the tap-to-place target with it. */
-  const clearSelection = () => {
-    ctrl.setSelectedItemIds(new Set());
-    useStore.getState().setInteractionState(null);
-  };
+export const InboxStashToolbar: React.FC<{ ctrl: DockCtrl }> = ({ ctrl }) => {
+  const selected = ctrl.selectedItemIds;
+  const singleId = selected.size === 1 ? selected.values().next().value : null;
 
   const moveSelected = (targetId: string) => {
     ctrl.moveItemsToCollection(Array.from(selected), targetId);
-    clearSelection();
+    ctrl.clearSelection();
   };
 
   const [moveMenu, setMoveMenu] = React.useState<{
     x: number;
     y: number;
   } | null>(null);
-  /** Everywhere the selection could go — everywhere except where it already is. */
   const moveTargets = ctrl.collections.filter(
     (c) => c.id !== ctrl.activeCollectionId,
   );
 
   return (
-    <div className="flex items-center gap-2 px-2 sm:px-6 py-3 border-b border-border shrink-0 hide-scrollbar material-thin relative h-14 z-10 overflow-visible">
+    <div className="flex items-center gap-2 px-2 sm:px-6 py-3 shrink-0 hide-scrollbar material-thin relative h-14 z-10 overflow-visible">
       <AnimatePresence mode="popLayout" initial={false}>
-        {selected.size > 0 ? (
+        {ctrl.placement ? (
+          <motion.div
+            key="placement"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.18 }}
+            className="flex items-center justify-between gap-2 w-full py-1"
+          >
+            <span className="flex items-center gap-2 min-w-0 text-footnote font-semibold text-primary">
+              <CornerDownRight size={15} className="shrink-0" />
+              <span className="truncate">Tap a cell or tier to place</span>
+            </span>
+            <button
+              type="button"
+              onClick={ctrl.cancelPlacement}
+              className={`${actionClass} text-muted hover:text-text hover:bg-hover shrink-0`}
+            >
+              <X size={14} />
+              Cancel
+            </button>
+          </motion.div>
+        ) : selected.size > 0 ? (
           <motion.div
             key="selection"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.18 }}
             className="flex items-center gap-1 justify-between sm:gap-3 w-full py-1"
           >
-            <div className="flex gap-1">
-              <span className="text-footnote font-medium text-primary bg-primary/10 px-3 sm:px-4 py-1.5 rounded-full">
+            <div className="flex gap-1 min-w-0">
+              <span className="shrink-0 text-footnote font-medium text-primary bg-primary/10 px-3 sm:px-4 py-1.5 rounded-full">
                 {selected.size} Selected
               </span>
+
+              {singleId && (
+                <button
+                  type="button"
+                  onClick={() => ctrl.startPlacement(singleId)}
+                  className={`${actionClass} bg-primary text-on-accent hover:opacity-90 shrink-0`}
+                >
+                  <CornerDownRight size={14} />
+                  Place
+                </button>
+              )}
 
               <button
                 type="button"
@@ -69,29 +100,27 @@ export const InboxStashToolbar: React.FC<{ ctrl: DockCtrl }> = ({ ctrl }) => {
                     y: rect.bottom + 4,
                   });
                 }}
-                className="flex items-center gap-1.5 text-footnote font-medium text-text
-                           hover:bg-hover px-3 sm:px-4 py-1.5 rounded-full
-                           transition-colors border border-border
-                           disabled:opacity-40 disabled:hover:bg-transparent"
+                className={`${actionClass} text-text border border-border hover:bg-hover
+                           disabled:opacity-40 disabled:hover:bg-transparent shrink-0`}
               >
                 <FolderInput size={14} className="text-muted" />
-                Move To
+                <span className="hidden sm:inline">Move To</span>
               </button>
             </div>
 
-            <div className="flex gap-1">
+            <div className="flex gap-1 shrink-0">
               <button
                 type="button"
                 onClick={ctrl.handleBulkDelete}
-                className="flex items-center gap-1.5 text-footnote font-medium text-red-500 hover:bg-red-500/10 px-3 sm:px-4 py-1.5 rounded-full transition-colors ml-auto"
+                className={`${actionClass} text-red-500 hover:bg-red-500/10`}
               >
                 <Trash size={14} />
                 <span className="hidden sm:inline">Delete</span>
               </button>
               <button
                 type="button"
-                onClick={clearSelection}
-                className="flex items-center gap-1.5 text-footnote font-medium text-muted hover:text-text hover:bg-hover px-3 sm:px-4 py-1.5 rounded-full transition-colors"
+                onClick={ctrl.clearSelection}
+                className={`${actionClass} text-muted hover:text-text hover:bg-hover`}
               >
                 <X size={14} />
                 <span className="hidden sm:inline">Cancel</span>
@@ -104,7 +133,7 @@ export const InboxStashToolbar: React.FC<{ ctrl: DockCtrl }> = ({ ctrl }) => {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.18 }}
             className="w-full"
           >
             <div className="flex items-center gap-2 w-full min-w-0">
@@ -121,16 +150,10 @@ export const InboxStashToolbar: React.FC<{ ctrl: DockCtrl }> = ({ ctrl }) => {
               <div aria-hidden className="w-px h-4 bg-border shrink-0" />
 
               <ScrollRail className="flex-1 min-w-0" trailingSpace="pr-7">
-                <div
-                  ref={mag.rowRef}
-                  className="flex items-center gap-2"
-                  {...(canHover ? mag.handlers : {})}
-                >
-                  {ctrl.collections.map((col, i) => (
+                <div className="flex items-center gap-2">
+                  {ctrl.collections.map((col) => (
                     <CollectionChip
                       key={col.id}
-                      index={i + 1}
-                      mag={mag}
                       name={col.name}
                       isActive={col.id === ctrl.activeCollectionId}
                       isEditing={ctrl.editingNameId === col.id}
@@ -142,24 +165,22 @@ export const InboxStashToolbar: React.FC<{ ctrl: DockCtrl }> = ({ ctrl }) => {
                         ctrl.setTempName(col.name);
                       }}
                       onTempNameChange={ctrl.setTempName}
-                      onCommitRename={() => commitRename(ctrl, col.id)}
+                      onCommitRename={() => ctrl.commitCollectionRename(col.id)}
                       onCancelRename={() => ctrl.setEditingNameId(null)}
                       onDelete={() => ctrl.requestDeleteCollection(col)}
                     />
                   ))}
 
-                  <motion.button
+                  <button
                     type="button"
-                    whileTap={{ scale: 0.9, rotate: 90 }}
-                    transition={motionPreset.snappy}
                     onClick={ctrl.addCollection}
                     className="grid place-items-center w-8 h-8 rounded-full shrink-0 text-muted
-                           hover:text-primary hover:bg-hover transition-colors"
+                               hover:text-primary hover:bg-hover transition-colors"
                     title="New collection"
                     aria-label="New collection"
                   >
                     <Plus size={16} />
-                  </motion.button>
+                  </button>
                 </div>
               </ScrollRail>
             </div>
@@ -182,17 +203,9 @@ export const InboxStashToolbar: React.FC<{ ctrl: DockCtrl }> = ({ ctrl }) => {
   );
 };
 
-/** A blank name cancels the rename rather than creating an unnamed chip. */
-function commitRename(ctrl: DockCtrl, colId: string) {
-  if (ctrl.tempName.trim()) ctrl.renameCollection(colId, ctrl.tempName);
-  ctrl.setEditingNameId(null);
-}
-
 /** Rename and delete exist only on the selected chip, so the row stays a plain
  *  list of names until one is picked. */
 const CollectionChip: React.FC<{
-  index: number;
-  mag: ReturnType<typeof useMagnificationRow>;
   name: string;
   isActive: boolean;
   isEditing: boolean;
@@ -205,75 +218,71 @@ const CollectionChip: React.FC<{
   onCancelRename: () => void;
   onDelete: () => void;
 }> = (props) => (
-  <MagnifyItem index={props.index} ctx={props.mag}>
-    <div
-      role="button"
-      tabIndex={0}
-      aria-pressed={props.isActive}
-      onClick={() => !props.isEditing && props.onSelect()}
-      onKeyDown={(e) => {
-        if (!props.isEditing && (e.key === "Enter" || e.key === " ")) {
-          e.preventDefault();
-          props.onSelect();
-        }
-      }}
-      className={`${chipClass(props.isActive)} pr-2`}
-    >
-      {props.isEditing ? (
-        <input
-          autoFocus
-          type="text"
-          value={props.tempName}
-          onFocus={(e) => e.target.select()}
-          onChange={(e) => props.onTempNameChange(e.target.value)}
-          onBlur={props.onCommitRename}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === "Escape") {
-              if (e.key === "Escape") props.onCancelRename();
-              e.currentTarget.blur();
-            }
-          }}
-          aria-label="Collection name"
-          onClick={(e) => e.stopPropagation()}
-          className="bg-transparent border-none outline-none text-text w-[7ch] min-w-16 font-medium"
-        />
-      ) : (
-        <>
-          <span className="truncate max-w-[120px]">{props.name}</span>
-          {props.isActive && (
-            <>
+  <div
+    role="button"
+    tabIndex={0}
+    aria-pressed={props.isActive}
+    onClick={() => !props.isEditing && props.onSelect()}
+    onKeyDown={(e) => {
+      if (!props.isEditing && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        props.onSelect();
+      }
+    }}
+    className={`${chipClass(props.isActive)} pr-2`}
+  >
+    {props.isEditing ? (
+      <input
+        autoFocus
+        type="text"
+        value={props.tempName}
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => props.onTempNameChange(e.target.value)}
+        onBlur={props.onCommitRename}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === "Escape") {
+            if (e.key === "Escape") props.onCancelRename();
+            e.currentTarget.blur();
+          }
+        }}
+        aria-label="Collection name"
+        onClick={(e) => e.stopPropagation()}
+        className="bg-transparent border-none outline-none text-text w-[7ch] min-w-16 font-medium"
+      />
+    ) : (
+      <>
+        <span className="truncate max-w-[120px]">{props.name}</span>
+        {props.isActive && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                props.onStartRename();
+              }}
+              className="text-current/70 hover:text-current p-0.5 transition-colors shrink-0"
+              title="Rename"
+              aria-label="Rename"
+            >
+              <Edit size={12} />
+            </button>
+            {props.canDelete && (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  props.onStartRename();
+                  props.onDelete();
                 }}
-                className="text-current/70 hover:text-current p-0.5 transition-colors shrink-0"
-                title="Rename"
-                aria-label="Rename"
+                className="text-current/70 hover:text-destructive p-0.5 transition-colors shrink-0"
+                title="Delete collection"
+                aria-label="Delete collection"
               >
-                <Edit size={12} />
+                <Trash size={12} />
               </button>
-              {props.canDelete && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    props.onDelete();
-                  }}
-                  className="text-current/70 hover:text-destructive p-0.5 transition-colors shrink-0"
-                  title="Delete collection"
-                  aria-label="Delete collection"
-                >
-                  <Trash size={12} />
-                </button>
-              )}
-            </>
-          )}
-        </>
-      )}
-    </div>
-  </MagnifyItem>
+            )}
+          </>
+        )}
+      </>
+    )}
+  </div>
 );
-
-

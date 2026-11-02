@@ -1,29 +1,29 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback } from "react";
+import { readFileAsDataURL } from "@/utils/imageUtils";
+import { useToast } from "@/context/ToastContext";
 
-export function useCellMediaUpload(onUploadSuccess: (fileOrBase64: string | File) => void, readAsBase64: boolean = true) {
+/**
+ * The file picker behind a tile's "choose image" action.
+ */
+export function useCellMediaUpload(onUploadSuccess: (base64: string) => void) {
+  const addToast = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const onSuccessRef = useRef(onUploadSuccess);
+  onSuccessRef.current = onUploadSuccess;
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      // Let the same file be chosen twice in a row.
+      if (e.target) e.target.value = "";
+      if (!file) return;
 
-    if (readAsBase64) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          onUploadSuccess(event.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
-    } else {
-      onUploadSuccess(file);
-    }
-    
-    // Reset input so the same file can be selected again
-    if (e.target) {
-        e.target.value = '';
-    }
-  }, [onUploadSuccess, readAsBase64]);
+      void readFileAsDataURL(file)
+        .then((src) => onSuccessRef.current(src))
+        .catch(() => addToast("error", "Could not read that image"));
+    },
+    [addToast],
+  );
 
   const triggerPicker = useCallback(() => {
     fileInputRef.current?.click();

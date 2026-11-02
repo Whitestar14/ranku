@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useStore } from "@/store/useStore";
+import { useStore, flushHistory } from "@/store/useStore";
 import { useShortcutState } from "@/state/shortcutState";
 import { useToast } from "@/context/ToastContext";
-import { readFileAsDataURL } from "@/utils/imageUtils";
 import {
   CELL_WIDTH_MAX,
   CELL_WIDTH_MIN,
@@ -19,10 +18,14 @@ export interface ShortcutOptions {
   onToggleSidebar?: () => void;
   /** ⌘E. */
   onExport?: () => void;
+  /** ⌘D. The dock owns its own open state, so this is a window event. */
+  onToggleDock?: () => void;
 }
 
 export function useGlobalShortcuts(options: ShortcutOptions) {
-  const [internalClipboard, setInternalClipboard] = useState<string | null>(null);
+  const [internalClipboard, setInternalClipboard] = useState<string | null>(
+    null,
+  );
   const addToast = useToast();
 
   /* Options are read through a ref. They are new closures every render, and
@@ -30,44 +33,6 @@ export function useGlobalShortcuts(options: ShortcutOptions) {
      listeners on every keystroke-driven render. */
   const optionsRef = useRef(options);
   optionsRef.current = options;
-
-  // Global Paste
-  useEffect(() => {
-    const handlePaste = async (e: ClipboardEvent) => {
-      if (
-        (e.target as HTMLElement).tagName === "INPUT" ||
-        (e.target as HTMLElement).tagName === "TEXTAREA"
-      )
-        return;
-
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf("image") !== -1) {
-          const blob = items[i].getAsFile();
-          if (blob) {
-            try {
-              const src = await readFileAsDataURL(blob);
-              const st = useStore.getState();
-              if (st.interactionState?.type === "cell") {
-                st.handleCellUpload(st.interactionState.index, src);
-              } else {
-                const activeColId =
-                  st.inbox.activeCollectionId === "all-images"
-                    ? st.inbox.collections[0].id
-                    : st.inbox.activeCollectionId;
-                st.handleAddToCollection(src, activeColId);
-              }
-            } catch (err) {
-              console.error(err);
-            }
-          }
-        }
-      }
-    };
-    window.addEventListener("paste", handlePaste);
-    return () => window.removeEventListener("paste", handlePaste);
-  }, []);
 
   // Keyboard Shortcuts
   useEffect(() => {
@@ -100,6 +65,11 @@ export function useGlobalShortcuts(options: ShortcutOptions) {
         optionsRef.current.onExport?.();
         return;
       }
+      if (mod && key === "d") {
+        e.preventDefault();
+        optionsRef.current.onToggleDock?.();
+        return;
+      }
 
       if (e.key === "Escape") {
         st.setInteractionState(null);
@@ -109,6 +79,7 @@ export function useGlobalShortcuts(options: ShortcutOptions) {
 
       if (mod && key === "z") {
         e.preventDefault();
+        flushHistory();
         const temporal = useStore.temporal.getState();
         if (e.shiftKey) {
           if (!temporal.futureStates.length) {
@@ -138,7 +109,7 @@ export function useGlobalShortcuts(options: ShortcutOptions) {
           const delta = e.key === "-" ? -TILE_STEP : TILE_STEP;
           const next = Math.min(
             CELL_WIDTH_MAX,
-            Math.max(CELL_WIDTH_MIN, current + delta)
+            Math.max(CELL_WIDTH_MIN, current + delta),
           );
           if (next !== current) st.updateActiveRank({ cellWidth: next });
           return;
@@ -165,15 +136,6 @@ export function useGlobalShortcuts(options: ShortcutOptions) {
         }
       }
 
-      // Quick Clear
-      if (e.key === "Backspace" || e.key === "Delete") {
-        if (st.interactionState?.type === "cell" && rank) {
-          e.preventDefault();
-          st.handleCellClear(st.interactionState.index);
-          return;
-        }
-      }
-
       // Copy/Paste internal
       if (mod && key === "c") {
         if (st.interactionState?.type === "cell" && rank) {
@@ -191,15 +153,19 @@ export function useGlobalShortcuts(options: ShortcutOptions) {
 
       if (e.key === "Delete" || e.key === "Backspace") {
         if (st.interactionState?.type === "cell" && rank) {
+          e.preventDefault();
           st.handleCellClear(st.interactionState.index);
           st.setInteractionState(null);
+          return;
         }
         if (st.interactionState?.type === "tier-item" && rank) {
+          e.preventDefault();
           st.handleTierItemRemove(
             st.interactionState.rowId,
-            st.interactionState.itemId
+            st.interactionState.itemId,
           );
           st.setInteractionState(null);
+          return;
         }
       }
     };

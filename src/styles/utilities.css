@@ -62,10 +62,6 @@
     animation: drop-land 460ms var(--ease-emphasized) forwards;
   }
 
-  .drop-target {
-    animation: drop-target 900ms var(--ease-standard) infinite;
-  }
-
   .dock-drop-hot {
     outline: 2px solid color-mix(in srgb, var(--color-primary) 40%, transparent);
     outline-offset: 2px;
@@ -95,6 +91,10 @@
     display: block;
     width: auto;
     height: clamp(18px, 12cqi, 30px);
+  }
+
+  .tile {
+    -webkit-touch-callout: none;
   }
 
   .img-sheen {
@@ -178,11 +178,17 @@
 .loader-track {
   --loader-cell: 12px;
   --loader-gap: 3px;
-  --loader-width: calc(var(--loader-cell) * 12 + var(--loader-gap) * 11);
+  --loader-pitch: calc(var(--loader-cell) + var(--loader-gap));
+  /* Includes the gap after the twelfth cell. `steps(12)` then advances
+     exactly one cell per step; without it the fill boundary landed inside
+     cells and the ramp showed half squares mid-animation. */
+  --loader-width: calc(var(--loader-pitch) * 12);
 
   position: relative;
+  box-sizing: content-box;
   width: var(--loader-width);
-  height: 16px;
+  height: var(--loader-cell);
+  margin-right: calc(var(--loader-gap) * -1);
   border: 2px solid color-mix(in srgb, var(--color-text) 26%, transparent);
 
   background-image: repeating-linear-gradient(

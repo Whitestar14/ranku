@@ -1,27 +1,31 @@
 import { fetchJson } from "../http";
 import { MediaResult, SearchMode } from "../types";
 
-const JIKAN_BASE = "https://api.jikan.moe/v4";
+/**
+ * Tenrai serves the MyAnimeList catalogue over a Jikan v4 compatible API. It is
+ * still beta and `/v1` is interim, so the shape here is pinned to v1.
+ */
+const TENRAI_BASE = "https://api.tenrai.org/v1";
 const PER_PAGE = 20;
 
-interface JikanImage {
+interface TenraiImages {
   jpg?: { image_url?: string; large_image_url?: string };
   webp?: { image_url?: string; large_image_url?: string };
 }
 
-interface JikanEntry {
+interface TenraiEntry {
   mal_id: number;
   title?: string;
   title_english?: string;
   name?: string;
   favorites?: number;
-  images?: JikanImage;
+  images?: TenraiImages;
 }
 
-export async function searchJikan(
+export async function searchTenrai(
   query: string,
   mode: SearchMode,
-  signal: AbortSignal
+  signal: AbortSignal,
 ): Promise<MediaResult[]> {
   const params = new URLSearchParams({
     q: query,
@@ -32,9 +36,9 @@ export async function searchJikan(
   if (mode === "anime") params.set("sfw", "true");
 
   const payload = (await fetchJson(
-    `${JIKAN_BASE}/${mode}?${params.toString()}`,
-    { signal }
-  )) as { data?: JikanEntry[] };
+    `${TENRAI_BASE}/${mode}?${params.toString()}`,
+    { signal },
+  )) as { data?: TenraiEntry[] };
 
   return (payload.data ?? []).flatMap((entry) => {
     const images = entry.images?.webp ?? entry.images?.jpg;
@@ -42,8 +46,8 @@ export async function searchJikan(
     if (!image) return [];
     return [
       {
-        id: `jikan:${entry.mal_id}`,
-        source: "jikan" as const,
+        id: `tenrai:${entry.mal_id}`,
+        source: "tenrai" as const,
         malId: entry.mal_id,
         title: entry.title_english || entry.title || entry.name || "Unknown",
         imageUrl: image,

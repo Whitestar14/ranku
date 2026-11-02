@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { observeResize } from "@/utils/resizeObserver";
 
 export interface PanZoomState {
   zoom: number;
@@ -6,10 +7,8 @@ export interface PanZoomState {
   posY: number;
 }
 
-const MIN_ZOOM = 1;
+const MIN_ZOOM = 0.02;
 const MAX_ZOOM = 4;
-/** Per-wheel-notch zoom factor, applied exponentially so it feels the same at
- *  every zoom level. */
 const WHEEL_SENSITIVITY = 1.0018;
 
 const clampZoom = (z: number) => Math.min(Math.max(MIN_ZOOM, z), MAX_ZOOM);
@@ -23,6 +22,9 @@ const readPlacement = (state: Partial<PanZoomState>): PanZoomState => ({
   posY: clampPercent(finite(state.posY, 50)),
 });
 
+const fitZoomFor = ({ boxW, boxH, coverW, coverH }: Geometry) =>
+  Math.min(1, boxW / coverW, boxH / coverH);
+
 interface Geometry {
   boxW: number;
   boxH: number;
@@ -34,14 +36,19 @@ interface Geometry {
 export function usePanZoom(
   initialState: Partial<PanZoomState> = {},
   containerRef: React.RefObject<HTMLElement | null>,
-  onUpdate?: (state: PanZoomState) => void
+  onUpdate?: (state: PanZoomState) => void,
+  /** The element the artwork sits in, which also owns the dimming overlay. */
+  wheelTargetRef: React.RefObject<HTMLElement | null> = containerRef,
 ) {
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [isAdjustDragging, setIsAdjustDragging] = useState(false);
   const [placement, setPlacement] = useState(() => readPlacement(initialState));
   const [geometry, setGeometry] = useState<Geometry | null>(null);
 
-  /** The placement the tile will fall back to if the edit is cancelled. */
+  const zoomFloor = geometry ? fitZoomFor(geometry) : MIN_ZOOM;
+  const zoomFloorRef = useRef(zoomFloor);
+  zoomFloorRef.current = zoomFloor;
+
   const saved = useRef<PanZoomState>(placement);
 
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -49,50 +56,65 @@ export function usePanZoom(
   const pinch = useRef<{ distance: number; zoom: number } | null>(null);
 
   const setZoom = (value: number) =>
-    setPlacement((prev) => ({ ...prev, zoom: clampZoom(value) }));
+    setPlacement((prev) => ({
+      ...prev,
+      zoom: Math.min(Math.max(zoomFloorRef.current, value), MAX_ZOOM),
+    }));
 
-  const measure = useCallback(() => {
-    const box = containerRef.current;
-    if (!box) return;
-    const rect = box.getBoundingClientRect();
-    const img = box.querySelector("img");
-    const naturalW = img?.naturalWidth ?? 0;
-    const naturalH = img?.naturalHeight ?? 0;
-    if (!rect.width || !rect.height || !naturalW || !naturalH) return;
-    const cover = Math.max(rect.width / naturalW, rect.height / naturalH);
-    setGeometry({
-      boxW: rect.width,
-      boxH: rect.height,
-      coverW: naturalW * cover,
-      coverH: naturalH * cover,
-    });
-  }, [containerRef]);
+  const measure = useCallback(
+    (size?: { width: number; height: number }) => {
+      const box = containerRef.current;
+      if (!box) return;
 
-  // Re-measure when the tile resizes and when the image finally decodes.
+      const width = size?.width ?? box.clientWidth;
+      const height = size?.height ?? box.clientHeight;
+      const img = box.querySelector("img");
+      const naturalW = img?.naturalWidth ?? 0;
+      const naturalH = img?.naturalHeight ?? 0;
+      if (!width || !height || !naturalW || !naturalH) return;
+      const cover = Math.max(width / naturalW, height / naturalH);
+      setGeometry({
+        boxW: width,
+        boxH: height,
+        coverW: naturalW * cover,
+        coverH: naturalH * cover,
+      });
+    },
+    [containerRef],
+  );
+
   useEffect(() => {
     measure();
     const box = containerRef.current;
     if (!box) return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(box);
-    box.addEventListener("load", measure, true);
+    const unobserve = observeResize(box, measure);
+    const onLoad = () => measure();
+    box.addEventListener("load", onLoad, true);
     return () => {
-      observer.disconnect();
-      box.removeEventListener("load", measure, true);
+      unobserve();
+      box.removeEventListener("load", onLoad, true);
     };
   }, [measure, containerRef]);
 
-  /* Adopt placement written from outside (undo, import, project switch) while
-     the tile is idle, so the hook cannot drift from the stored cell. */
+  useEffect(() => {
+    if (!geometry) return;
+    setPlacement((prev) =>
+      prev.zoom >= zoomFloor ? prev : { ...prev, zoom: zoomFloor },
+    );
+  }, [geometry, zoomFloor]);
+
   const { zoom: inputZoom, posX: inputPosX, posY: inputPosY } = initialState;
   useEffect(() => {
     if (isAdjusting) return;
-    const next = readPlacement({ zoom: inputZoom, posX: inputPosX, posY: inputPosY });
+    const next = readPlacement({
+      zoom: inputZoom,
+      posX: inputPosX,
+      posY: inputPosY,
+    });
     saved.current = next;
     setPlacement(next);
   }, [isAdjusting, inputZoom, inputPosX, inputPosY]);
 
-  /** How far the image can travel before its edge would come into the tile. */
   const panRange = useMemo(() => {
     if (!geometry) return null;
     return {
@@ -103,21 +125,27 @@ export function usePanZoom(
 
   const imageStyle = useMemo<React.CSSProperties>(() => {
     const { zoom, posX, posY } = placement;
-    if (!panRange || (panRange.x === 0 && panRange.y === 0)) {
-      // Nothing to pan (the image fills the tile exactly): fall back to the
-      // plain object-position reading of the same values.
+    if (!geometry) {
       return {
         objectPosition: `${posX}% ${posY}%`,
         transform: `scale(${zoom})`,
       };
     }
+    const overflow = panRange ?? { x: 0, y: 0 };
     return {
+      width: geometry.coverW,
+      height: geometry.coverH,
+      left: (geometry.boxW - geometry.coverW) / 2,
+      top: (geometry.boxH - geometry.coverH) / 2,
+      maxWidth: "none",
+      objectFit: "fill",
       objectPosition: "center",
-      transform: `translate(${
-        ((50 - posX) / 50) * panRange.x
-      }px, ${((50 - posY) / 50) * panRange.y}px) scale(${zoom})`,
+      transformOrigin: "center",
+      transform: `translate(${((posX - 50) / 50) * overflow.x}px, ${
+        ((posY - 50) / 50) * overflow.y
+      }px) scale(${zoom})`,
     };
-  }, [panRange, placement]);
+  }, [geometry, panRange, placement]);
 
   const panBy = (dx: number, dy: number) => {
     if (!panRange) return;
@@ -125,11 +153,11 @@ export function usePanZoom(
       zoom: prev.zoom,
       posX:
         panRange.x > 0
-          ? clampPercent(prev.posX - (dx / panRange.x) * 50)
+          ? clampPercent(prev.posX + (dx / panRange.x) * 50)
           : prev.posX,
       posY:
         panRange.y > 0
-          ? clampPercent(prev.posY - (dy / panRange.y) * 50)
+          ? clampPercent(prev.posY + (dy / panRange.y) * 50)
           : prev.posY,
     }));
   };
@@ -189,24 +217,29 @@ export function usePanZoom(
     }
   };
 
-  /* The wheel listener has to be registered by hand: React attaches `onWheel`
-     passively, so `preventDefault()` there does nothing and zooming also
-     scrolled the board behind the tile. */
   useEffect(() => {
     if (!isAdjusting) return;
-    const box = containerRef.current;
+    // listen to the whole tile since the overlay is a
+    // sibling of the image and wheel events won't reach the image wrapper
+    const box = wheelTargetRef.current;
     if (!box) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       e.stopPropagation();
       setPlacement((prev) => ({
         ...prev,
-        zoom: clampZoom(prev.zoom * WHEEL_SENSITIVITY ** -e.deltaY),
+        zoom: Math.min(
+          Math.max(
+            zoomFloorRef.current,
+            prev.zoom * WHEEL_SENSITIVITY ** -e.deltaY,
+          ),
+          MAX_ZOOM,
+        ),
       }));
     };
     box.addEventListener("wheel", onWheel, { passive: false });
     return () => box.removeEventListener("wheel", onWheel);
-  }, [isAdjusting, containerRef]);
+  }, [isAdjusting, wheelTargetRef]);
 
   const resetGesture = () => {
     pointers.current.clear();
@@ -216,7 +249,6 @@ export function usePanZoom(
   };
 
   const startAdjusting = () => {
-    // Enter from the saved placement so an abandoned edit never leaks in.
     setPlacement(saved.current);
     measure();
     setIsAdjusting(true);

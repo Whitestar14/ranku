@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useStore } from "@/store/useStore";
 import { useToast } from "@/context/ToastContext";
-import { downloadGrid, copyGrid } from "@/utils/imageUtils";
-import { cleanupOldCache } from "@/utils/imageCache";
+import { downloadGrid, copyGrid, type ImageFormat } from "@/utils/imageUtils";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useShortcutState } from "@/state/shortcutState";
 import { useModalState } from "@/state/modalState";
 import { useAppTheme } from "@/hooks/useAppTheme";
+import { requestDockToggle } from "@/utils/inboxDrag";
 import {
   selectActiveRankId,
   selectActiveRank,
@@ -15,20 +15,71 @@ import {
 import { resolveActiveRankId } from "@/utils/storeUtils";
 import { runActivity } from "@/state/activityState";
 
+const COMPACT_QUERY = "(max-width: 1023px)";
+
+const isCompactViewport = () =>
+  typeof window !== "undefined" && window.matchMedia(COMPACT_QUERY).matches;
+
+const preferredSidebarOpen = () =>
+  useStore.getState().preferences.sidebarOpen ?? true;
+
 export function useAppController() {
   const addToast = useToast();
 
   // Local UI State
   const [showLoader, setShowLoader] = useState(true);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isProjectsOpen, setIsProjectsOpen] = useState(false);
+  const [isCompact, setIsCompact] = useState(isCompactViewport);
+  /* Resolved during the first render so a wide layout never paints with the
+     rail closed and then shoves the board to the right. */
+  const [isSidebarOpen, setIsSidebarOpenState] = useState(
+    () => !isCompactViewport() && preferredSidebarOpen(),
+  );
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [tempTitle, setTempTitle] = useState("");
 
   const openExport = useModalState((s) => s.openExport);
   const openAbout = useModalState((s) => s.openAbout);
   const requestConfirm = useModalState((s) => s.requestConfirm);
+
+  const updatePreferences = useStore((s) => s.updatePreferences);
+  const persistedSidebarOpen = useStore((s) => s.preferences.sidebarOpen);
+
+  const sidebarOpenRef = useRef(isSidebarOpen);
+  sidebarOpenRef.current = isSidebarOpen;
+
+  /** Desktop keeps the choice; a phone always starts with the rail closed. */
+  const setIsSidebarOpen = useCallback(
+    (open: boolean) => {
+      setIsSidebarOpenState(open);
+      if (!isCompact) updatePreferences({ sidebarOpen: open });
+    },
+    [isCompact, updatePreferences],
+  );
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarOpen(!sidebarOpenRef.current);
+  }, [setIsSidebarOpen]);
+
+  useEffect(() => {
+    if (isCompact) return;
+    if (typeof persistedSidebarOpen === "boolean") {
+      setIsSidebarOpenState(persistedSidebarOpen);
+    }
+  }, [persistedSidebarOpen, isCompact]);
+
+  useEffect(() => {
+    const mq = window.matchMedia(COMPACT_QUERY);
+    const onChange = (event: MediaQueryListEvent) => {
+      setIsCompact(event.matches);
+      setIsSidebarOpenState(
+        event.matches ? false : preferredSidebarOpen(),
+      );
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const gridRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -52,21 +103,27 @@ export function useAppController() {
   const closeShortcuts = useShortcutState((s) => s.close);
 
   // Lifecycles
+  const bootAtRef = useRef(performance.now());
+
+  /* The loader covers hydration rather than a fixed pause: it lifts as soon as
+     the store is ready, with a short floor so the wordmark does not flicker. */
   useEffect(() => {
-    const timer = setTimeout(() => setShowLoader(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!isLoaded) return;
+    const elapsed = performance.now() - bootAtRef.current;
+    const timer = window.setTimeout(
+      () => setShowLoader(false),
+      Math.max(0, 280 - elapsed),
+    );
+    return () => window.clearTimeout(timer);
+  }, [isLoaded]);
 
   useEffect(() => {
-    if (window.innerWidth >= 1024) setIsSidebarOpen(true);
-
     const setLoaded = () => setIsLoaded(true);
     const unsubFinishHydration = useStore.persist.onFinishHydration(setLoaded);
 
     if (useStore.persist.hasHydrated()) setLoaded();
 
     const failsafe = window.setTimeout(setLoaded, 4000);
-    cleanupOldCache();
 
     return () => {
       unsubFinishHydration();
@@ -86,8 +143,9 @@ export function useAppController() {
   useAppTheme(isLoaded);
   useGlobalShortcuts({
     setIsEditingTitle,
-    onToggleSidebar: () => setIsSidebarOpen((open) => !open),
+    onToggleSidebar: toggleSidebar,
     onExport: openExport,
+    onToggleDock: requestDockToggle,
   });
 
   const confirmAction = requestConfirm;
@@ -112,7 +170,7 @@ export function useAppController() {
    * Export reports through the island, which is determinate where it can be.
    */
   const exportImage = async (
-    fmt: "png" | "jpeg" | "webp",
+    fmt: ImageFormat,
     qualityScale: number,
     trimPadding = false,
   ) => {
@@ -170,7 +228,7 @@ export function useAppController() {
     // State
     showLoader,
     isLoaded,
-    isLibraryOpen,
+    isProjectsOpen,
     isSidebarOpen,
     isEditingTitle,
     tempTitle,
@@ -184,8 +242,9 @@ export function useAppController() {
     interactionState,
 
     // Setters
-    setIsLibraryOpen,
+    setIsProjectsOpen,
     setIsSidebarOpen,
+    toggleSidebar,
     openExport,
     openAbout,
     setIsEditingTitle,

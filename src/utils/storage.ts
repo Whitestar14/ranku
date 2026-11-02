@@ -3,6 +3,8 @@ import { StateStorage } from "zustand/middleware";
 import { GlobalState, TierRow, Rank, ProjectType } from "@/types";
 import { DEFAULT_TIER_COLORS } from "@/constants/tierColors";
 import { normalizeTierColor } from "@/utils/dominantColor";
+import { createId } from "@/utils/storeUtils";
+import { logError } from "@/utils/log";
 
 const CURRENT_VERSION = 4;
 
@@ -15,16 +17,22 @@ export const LEGACY_DEFAULT_ACCENT = "#f43f5e";
 export const systemAccentFor = (isDark: boolean) =>
   isDark ? ACCENT_BLUE_DARK : ACCENT_BLUE_LIGHT;
 
-export const defaultBoardBackground = (isDark: boolean) =>
-  isDark ? "#1c1c1e" : "#ffffff";
+/** New projects follow the accent until the user picks a fixed swatch. */
+export const defaultBoardBackground = (_isDark: boolean) => "auto";
 
-export const migratePersistedState = (persisted: any) => {
+export const migratePersistedState = (persisted: unknown): unknown => {
   if (!persisted || typeof persisted !== "object") return persisted;
-  const theme = persisted.theme;
+  const state = persisted as Partial<GlobalState> & {
+    inbox?: GlobalState["inbox"] & Record<string, unknown>;
+  };
+  const theme = state.theme;
   if (theme && theme.accentColor === LEGACY_DEFAULT_ACCENT) {
     theme.accentColor = systemAccentFor(theme.isDark ?? true);
   }
-  return persisted;
+  if (state.inbox && "isDraggingFromDock" in state.inbox) {
+    delete state.inbox.isDraggingFromDock;
+  }
+  return state;
 };
 
 /**
@@ -44,9 +52,7 @@ export const flushPersistedState = (): void => {
   if (!pending) return;
   const { name, value } = pending;
   pending = null;
-  void set(name, value).catch((err) =>
-    console.error("Failed to persist state", err),
-  );
+  void set(name, value).catch((err) => logError("Failed to persist state", err));
 };
 
 if (typeof window !== "undefined") {
@@ -95,7 +101,7 @@ export const createBlankRank = (
   /** Board sheet for the new project; follows the active appearance. */
   backgroundColor: string = defaultBoardBackground(true),
 ): Rank => {
-  const rankId = `rank-${Date.now()}`;
+  const rankId = createId("rank");
   return {
     id: rankId,
     title:
@@ -108,11 +114,13 @@ export const createBlankRank = (
     gridJustify: type === "tierlist" ? "left" : "center",
     config: { rows: type === "list" ? 5 : 3, cols: 3 },
     cells: Array.from({ length: type === "list" ? 5 : 9 }).map((_, i) => ({
-      id: `cell-${i}-${Date.now()}`,
+      id: createId("cell"),
       imageSrc: null,
       position: i,
     })),
-    style: "seamless",
+    /** Legacy: the style switch was removed in favour of radius + gap. */
+    style: "card",
+    borderRadius: 0,
     showNumbers: true,
     showTitle: true,
     showDate: true,
@@ -129,7 +137,6 @@ export const createRankLike = (source: Rank): Rank => {
   const type = source.type;
   const blank = createBlankRank(type);
   const cellCount = source.cells?.length || (type === "list" ? 5 : 9);
-  const now = Date.now();
 
   return {
     ...blank,
@@ -137,7 +144,7 @@ export const createRankLike = (source: Rank): Rank => {
     // A project's shape is its own, not its content.
     config: { ...source.config },
     cells: Array.from({ length: cellCount }).map((_, i) => ({
-      id: `cell-${i}-${now}`,
+      id: createId("cell"),
       imageSrc: null,
       position: i,
     })),
@@ -157,7 +164,7 @@ export const createRankLike = (source: Rank): Rank => {
     backgroundColor: source.backgroundColor,
     tierRows: source.tierRows.map((row) => ({
       ...row,
-      id: `tier-${row.label}-${now}-${Math.random().toString(36).slice(2, 6)}`,
+      id: createId("tier"),
       color: normalizeTierColor(row.color),
       items: [],
     })),
@@ -173,13 +180,12 @@ const nextUntitled = (title: string): string => {
 
 export const createDefaultState = (): GlobalState => {
   const rank = createBlankRank("ranking");
-  const colId = `col-${Date.now()}`;
+  const colId = createId("col");
   return {
     version: CURRENT_VERSION,
     activeRankId: rank.id,
     theme: {
       accentColor: ACCENT_BLUE_DARK,
-      paletteId: "ios-dark",
       isDark: true,
     },
     ranks: {
@@ -189,18 +195,33 @@ export const createDefaultState = (): GlobalState => {
       collections: [{ id: colId, name: "General", items: [] }],
       activeCollectionId: colId,
       lastTargetCollectionId: colId,
-      isDraggingFromDock: false,
     },
     preferences: {
       skipDuplicateWarning: false,
       reduceGlassEffects: false,
+      disableGrain: false,
       autoCloseDockOnDragDesktop: false,
+      exportTrimmed: true,
+      exportFormat: "png",
+      exportQuality: 2,
     },
   };
 };
 
 export const exportStateToJson = (state: GlobalState) => {
-  const dataStr = JSON.stringify(state);
+  /* Backups carry durable state only. Exporting the live store wrote the
+     selection, an armed placement and a pending dialog callback into the file
+     (the last one as `null`), which made the backup larger and the restore
+     noisier than it needed to be. */
+  const snapshot: GlobalState = {
+    version: state.version,
+    activeRankId: state.activeRankId,
+    theme: state.theme,
+    ranks: state.ranks,
+    inbox: state.inbox,
+    preferences: state.preferences,
+  };
+  const dataStr = JSON.stringify(snapshot);
   const blob = new Blob([dataStr], { type: "application/json" });
   const url = URL.createObjectURL(blob);
 
@@ -209,7 +230,11 @@ export const exportStateToJson = (state: GlobalState) => {
   const linkElement = document.createElement("a");
   linkElement.setAttribute("href", url);
   linkElement.setAttribute("download", exportFileDefaultName);
+  document.body.appendChild(linkElement);
   linkElement.click();
+  linkElement.remove();
 
-  URL.revokeObjectURL(url);
+  /* Revoking on the same tick can cancel the download in Safari, so the URL is
+     released once the browser has had a chance to start reading it. */
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 };

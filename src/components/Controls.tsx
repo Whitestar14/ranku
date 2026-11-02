@@ -1,33 +1,39 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Settings2, X, Download, ChevronDown } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
+import { ChevronDown } from "lucide-react";
+import { PixelIcon } from "@/components/pixel/PixelIcon";
 import { StatusIsland } from "@/components/StatusIsland";
+import { Button } from "@/components/ui/Button";
 import { motion as motionPreset, layoutMotion } from "@/lib/motion";
 import { useActivityState } from "@/state/activityState";
 
 interface ControlsProps {
   projectName: string;
-  onOpenLibrary: () => void;
+  onOpenProjects: () => void;
   onToggleSidebar: () => void;
   onOpenExport: () => void;
   isSidebarOpen: boolean;
   onCreateProject: () => void;
-  /** True once the board has scrolled under the bar. */
   isScrolled?: boolean;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
   projectName,
-  onOpenLibrary,
+  onOpenProjects,
   onToggleSidebar,
   onOpenExport,
   isSidebarOpen,
   onCreateProject,
   isScrolled = false,
 }) => {
-  const phase = useActivityState((s) => s.phase);
-  const activityLabel = useActivityState((s) => s.label);
-  const seq = useActivityState((s) => s.seq);
+  const {
+    phase,
+    label: activityLabel,
+    seq,
+  } = useActivityState(
+    useShallow((s) => ({ phase: s.phase, label: s.label, seq: s.seq })),
+  );
 
   const statusText = phase === "idle" ? null : (activityLabel ?? "Working");
 
@@ -40,56 +46,26 @@ export const Controls: React.FC<ControlsProps> = ({
                       : ""
                   }`}
     >
-      {/* `minmax(0, 1fr)` rather than `1fr`: a bare fraction floors at the
-          column's content width, so at 320px the export button was pushed past
-          the right edge of the bar instead of the title pill giving way. */}
       <div className="h-full w-full max-w-480 mx-auto px-2 md:px-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
         <div className="flex items-center justify-start min-w-0">
-          <motion.button
-            type="button"
+          <Button
+            variant="ghost"
+            size="md"
+            iconOnly
+            expandTap={false}
             onClick={onToggleSidebar}
-            aria-pressed={isSidebarOpen}
-            aria-label={isSidebarOpen ? "Close settings" : "Open settings"}
-            title={isSidebarOpen ? "Close settings" : "Open settings"}
-            whileTap={{ scale: 0.9 }}
-            transition={motionPreset.snappy}
-            className={`grid place-items-center w-9 h-9 rounded-full transition-colors duration-150 ${
-              isSidebarOpen
-                ? "bg-hover text-text"
-                : "text-muted hover:text-text hover:bg-hover"
-            }`}
+            aria-label={
+              isSidebarOpen ? "Close the sidebar" : "Open the sidebar"
+            }
+            title={isSidebarOpen ? "Close the sidebar" : "Open the sidebar"}
           >
-            <AnimatePresence mode="popLayout" initial={false}>
-              <motion.span
-                key={isSidebarOpen ? "close" : "open"}
-                initial={{
-                  opacity: 0,
-                  scale: 0.5,
-                  rotate: isSidebarOpen ? -80 : 80,
-                }}
-                animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                exit={{
-                  opacity: 0,
-                  scale: 0.5,
-                  rotate: isSidebarOpen ? 80 : -80,
-                }}
-                transition={motionPreset.snappy}
-                className="grid place-items-center"
-              >
-                {isSidebarOpen ? (
-                  <X size={18} strokeWidth={2.4} />
-                ) : (
-                  <Settings2 size={18} strokeWidth={2} />
-                )}
-              </motion.span>
-            </AnimatePresence>
-          </motion.button>
+            <PixelIcon name="sidebar" size={19} />
+          </Button>
         </div>
 
-        {/* Centre: the project selector, which also carries status. */}
         <div className="flex items-center gap-2 min-w-0">
           <motion.button
-            onClick={onOpenLibrary}
+            onClick={onOpenProjects}
             whileTap={{ scale: 0.95 }}
             whileHover={{ scale: 1.02 }}
             layout
@@ -99,7 +75,7 @@ export const Controls: React.FC<ControlsProps> = ({
                        hover:bg-hover transition-colors duration-150"
             title={statusText ? statusText : "Switch project"}
           >
-            <span className="relative block h-5 leading-5 min-w-[1ch] max-w-[40vw] sm:max-w-[300px] overflow-hidden text-left">
+            <span className="relative block h-5 leading-5 min-w-[1ch] max-w-[40vw] sm:max-w-[320px] overflow-hidden text-left">
               <AnimatePresence mode="popLayout" initial={false}>
                 {statusText ? (
                   <motion.span
@@ -108,7 +84,7 @@ export const Controls: React.FC<ControlsProps> = ({
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: "-120%", opacity: 0 }}
                     transition={motionPreset.control}
-                    className="block truncate whitespace-nowrap font-medium text-subheadline text-primary"
+                    className="block whitespace-nowrap font-medium text-subheadline text-primary"
                   >
                     {statusText}
                   </motion.span>
@@ -132,24 +108,19 @@ export const Controls: React.FC<ControlsProps> = ({
           <StatusIsland onCreateProject={onCreateProject} />
         </div>
 
-        <div className="flex items-center justify-end min-w-0 overflow-hidden">
-          <motion.button
-            type="button"
+        <div className="flex items-center justify-end min-w-0">
+          <Button
+            variant="ghost"
+            size="md"
+            icon={<PixelIcon name="download" size={18} />}
+            shape="pill"
             onClick={onOpenExport}
-            aria-label="Export project"
-            title="Export project"
-            whileTap={{ scale: 0.94 }}
-            whileHover={{ scale: 1.04 }}
-            transition={motionPreset.snappy}
-            className="inline-flex items-center justify-center gap-2 h-9 px-2.5 md:px-3.5
-                       rounded-full text-muted hover:text-text hover:bg-hover
-                       transition-colors duration-150 outline-none focus-visible:focus-ring"
+            aria-label="Export board as image"
+            title="Export board as image"
+            className="px-2.5 md:px-3.5"
           >
-            <Download size={18} strokeWidth={2} />
-            <span className="hidden md:inline font-medium text-subheadline">
-              Export
-            </span>
-          </motion.button>
+            <span className="hidden md:inline font-medium">Export</span>
+          </Button>
         </div>
       </div>
     </header>

@@ -5,6 +5,8 @@ interface TileEmptyStateProps {
   index: number;
   /** True while any card is in flight, which pre-highlights every empty tile. */
   isDraggingAny: boolean;
+  /** An image is being placed; this tap belongs to the cell, not the add menu. */
+  isPlacementTarget?: boolean;
   labelColor?: string;
   onOpen: (e: React.MouseEvent) => void;
 }
@@ -13,17 +15,26 @@ interface TileEmptyStateProps {
 export const TileEmptyState: React.FC<TileEmptyStateProps> = ({
   index,
   isDraggingAny,
+  isPlacementTarget = false,
   labelColor,
   onOpen,
 }) => (
   <button
     type="button"
     data-export-hide=""
-    aria-label={`Add image to position ${index + 1}`}
+    aria-label={
+      isPlacementTarget
+        ? `Place the selected image at position ${index + 1}`
+        : `Add image to position ${index + 1}`
+    }
     onClick={onOpen}
-    className="absolute inset-0 w-full h-full flex flex-col items-center justify-center gap-1.5
-               card-veil hover:bg-hover transition-colors duration-150
-               text-muted cursor-pointer"
+    className={`absolute inset-0 w-full h-full flex flex-col items-center justify-center gap-1.5
+               card-veil transition-colors duration-150
+               ${
+                 isPlacementTarget
+                   ? "text-primary bg-primary/10"
+                   : "text-muted cursor-pointer hover:bg-hover"
+               }`}
   >
     <span
       className={`flex items-center justify-center rounded-full media-scrim
@@ -46,9 +57,9 @@ export const TileEmptyState: React.FC<TileEmptyStateProps> = ({
     <span
       className="text-caption-1 font-medium opacity-80 transition-opacity duration-150
                  group-hover/tile:opacity-100"
-      style={labelColor ? { color: labelColor } : undefined}
+      style={!isPlacementTarget && labelColor ? { color: labelColor } : undefined}
     >
-      Add
+      {isPlacementTarget ? "Place" : "Add"}
     </span>
   </button>
 );

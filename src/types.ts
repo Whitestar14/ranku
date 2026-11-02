@@ -76,8 +76,9 @@ export interface Rank {
 
 export interface GlobalTheme {
   accentColor: string;
-  paletteId: string;
   isDark: boolean;
+  /** Ignored legacy field from older backups. */
+  paletteId?: string;
 }
 
 export type ImageSourcePreference = "auto" | "myanimelist" | "anilist";
@@ -91,13 +92,22 @@ export interface GlobalState {
     collections: InboxCollection[];
     activeCollectionId: string;
     lastTargetCollectionId?: string;
-    isDraggingFromDock: boolean;
   };
   preferences: {
     skipDuplicateWarning: boolean;
     reduceGlassEffects: boolean;
+    /** Disables the SVG noise layer while keeping specular highlights. */
+    disableGrain?: boolean;
     autoCloseDockOnDragDesktop: boolean;
     exportTrimmed?: boolean;
+    /** Last image format chosen in the export sheet. */
+    exportFormat?: "png" | "jpeg";
+    /** Last scale chosen in the export sheet (1x, 2x, 3x). */
+    exportQuality?: number;
+    /** Persisted width of the project settings rail, in px. */
+    railWidth?: number;
+    /** Last explicit open/closed choice for the project rail. */
+    sidebarOpen?: boolean;
     imageSource?: ImageSourcePreference;
   };
 }
@@ -113,11 +123,19 @@ export type TransferTarget =
   | { type: "cell"; index: number }
   | { type: "tier"; rowId: string; targetIndex: number };
 
-// Interaction State
+/**
+ * The one board surface the next dock tap will fill. Selection in the library
+ * is deliberately not part of this: a card can be selected for bulk actions
+ * without arming a drop anywhere.
+ */
 export type InteractionState =
   | { type: "cell"; index: number }
   | { type: "tier-item"; rowId: string; itemId: string }
-  | { type: "inbox"; itemId: string; collectionId: string }
-  | { type: "inbox-multi"; itemIds: string[]; collectionId: string }
-  | { type: "search"; imageSrc: string }
   | null;
+
+/** An image explicitly picked up from the dock, waiting for a board tap. */
+export interface Placement {
+  itemId: string;
+  collectionId: string;
+  imageSrc: string;
+}

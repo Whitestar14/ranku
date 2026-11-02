@@ -112,25 +112,29 @@ export const InboxStashGrid = React.memo<{ ctrl: DockCtrl }>(({ ctrl }) => {
                 </button>
               )}
 
-              <AnimatePresence mode="popLayout" initial={false}>
+              <AnimatePresence initial={false}>
                 {currentItems.map((item) => {
                   const isUsed = usedOnBoard.has(item.imageSrc);
                   const isSelected = selectedItemIds.has(item.id);
 
                   return (
                     <motion.div
-                      layout
-                      initial={{ opacity: 0, scale: 0.8 }}
+                      initial={{ opacity: 0, scale: 0.94 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
+                      exit={{ opacity: 0, scale: 0.94 }}
                       transition={motionPreset.snappy}
                       key={`${key}-${item.id}`}
-                      className="shrink-0"
+                      className="shrink-0 p-2"
+                      style={{
+                        contentVisibility: "auto",
+                        containIntrinsicSize: "128px 176px",
+                      }}
                     >
                       <InboxItemCard
                         item={item}
                         isUsed={isUsed}
                         isSelected={isSelected}
+                        isPlacing={ctrl.placement?.itemId === item.id}
                         isAllView={isAllView}
                         collectionId={
                           isAllView ? "all-images" : activeCollectionId

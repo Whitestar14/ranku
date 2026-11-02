@@ -1,7 +1,13 @@
 import { StateCreator } from "zustand";
 import { AppState } from "../useStore";
 import { TransferSource, TransferTarget, CellData } from "@/types";
-import { findInboxItem, findInboxItems } from "@/utils/storeUtils";
+import {
+  createId,
+  createInboxItem,
+  findInboxItem,
+  findInboxItems,
+  targetCollectionId,
+} from "@/utils/storeUtils";
 
 export interface TransferSlice {
   handleItemTransfer: (
@@ -61,17 +67,11 @@ export const createTransferSlice: StateCreator<
     } else if (source.type === "search") {
       imagesToTransfer.push(source.imageSrc);
       set((draft) => {
-        const activeColId =
-          draft.inbox.activeCollectionId === "all-images"
-            ? draft.inbox.collections[0].id
-            : draft.inbox.activeCollectionId;
-        const col = draft.inbox.collections.find((c) => c.id === activeColId);
+        const col = draft.inbox.collections.find(
+          (c) => c.id === targetCollectionId(draft.inbox),
+        );
         if (col && !col.items.some((i) => i.imageSrc === source.imageSrc)) {
-          col.items.push({
-            id: `inbox-add-${Date.now()}`,
-            imageSrc: source.imageSrc,
-            createdAt: Date.now(),
-          });
+          col.items.push(createInboxItem(source.imageSrc));
         }
       });
     } else if (source.type === "inbox") {
@@ -105,27 +105,19 @@ export const createTransferSlice: StateCreator<
         if (target.type === "inbox") {
           // Push to inbox (if not already from inbox/search)
           if (!itemsAreFromInbox && source.type !== "search") {
-            const targetColId =
-              draft.inbox.activeCollectionId === "all-images"
-                ? draft.inbox.collections[0].id
-                : draft.inbox.activeCollectionId;
-            const col = draft.inbox.collections.find((c) => c.id === targetColId);
+            const col = draft.inbox.collections.find(
+              (c) => c.id === targetCollectionId(draft.inbox),
+            );
             if (col) {
-              // An image that is already tracked anywhere in the library is not
-              // re-added — sending a poster back to the Library used to push a
-              // duplicate copy of it every time.
+              // Never re-add an image the library already holds.
               const tracked = new Set<string>();
               draft.inbox.collections.forEach((c) =>
                 c.items.forEach((i) => tracked.add(i.imageSrc))
               );
-              imagesToTransfer.forEach((img, idx) => {
+              imagesToTransfer.forEach((img) => {
                 if (tracked.has(img)) return;
                 tracked.add(img);
-                col.items.push({
-                  id: `inbox-moved-${Date.now()}-${idx}`,
-                  imageSrc: img,
-                  createdAt: Date.now(),
-                });
+                col.items.push(createInboxItem(img));
               });
             }
           }
@@ -138,7 +130,7 @@ export const createTransferSlice: StateCreator<
           const row = dRank.tierRows.find((r) => r.id === target.rowId);
           if (row) {
             const itemsToAdd: CellData[] = imagesToTransfer.map((img) => ({
-              id: `cell-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+              id: createId("cell"),
               imageSrc: img,
               position: 0,
             }));

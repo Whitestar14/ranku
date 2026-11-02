@@ -1,7 +1,20 @@
 import { StateCreator } from "zustand";
 import { AppState } from "../useStore";
-import { TierRow, ProjectType, GridConfig, CellData, VisualToggleKey } from "@/types";
-import { ensureCells, newTierRowId } from "@/utils/storeUtils";
+import {
+  TierRow,
+  ProjectType,
+  GridConfig,
+  CellData,
+  VisualToggleKey,
+} from "@/types";
+import {
+  ensureCells,
+  exclusiveProjectImages,
+  newTierRowId,
+  resizeCells,
+  resolveActiveRankId,
+  trackImage,
+} from "@/utils/storeUtils";
 import {
   createBlankRank,
   createRankLike,
@@ -10,7 +23,10 @@ import {
 
 export interface RankSlice {
   updateActiveRank: (updates: Partial<AppState["ranks"][string]>) => void;
-  updateRankById: (id: string, updates: Partial<AppState["ranks"][string]>) => void;
+  updateRankById: (
+    id: string,
+    updates: Partial<AppState["ranks"][string]>,
+  ) => void;
   handleConfigChange: (newConfig: GridConfig) => void;
 
   handleVisualToggle: (key: VisualToggleKey) => void;
@@ -20,7 +36,11 @@ export interface RankSlice {
   handleSwapCells: (fromIndex: number, toIndex: number) => void;
   handleReorderCells: (fromIndex: number, toIndex: number) => void;
   handleRecallFromBoard: (imageSrc: string) => void;
-  handleUpdateTierItem: (rowId: string, itemId: string, data: Partial<CellData>) => void;
+  handleUpdateTierItem: (
+    rowId: string,
+    itemId: string,
+    data: Partial<CellData>,
+  ) => void;
   handleUpdateTierRows: (rows: TierRow[]) => void;
   handleReorderTierRows: (fromIndex: number, toIndex: number) => void;
   handleTierItemRemove: (rowId: string, itemId: string) => void;
@@ -29,8 +49,21 @@ export interface RankSlice {
   /** Blank project inheriting the active project's schema. Returns its id. */
   handleNewRankLikeCurrent: () => string | undefined;
   handleDeleteRank: (id: string) => void;
+  /** Deletes several projects at once, optionally dropping their Library art. */
+  handleDeleteRanks: (ids: string[], purgeLibrary?: boolean) => void;
   setActiveRankId: (id: string) => void;
 }
+
+const MAX_RANK_HISTORY = 30;
+
+const rememberRank = (state: AppState, id: string) => {
+  if (!id || !state.ranks[id]) return;
+  state.rankHistory = (state.rankHistory ?? []).filter(
+    (rankId) => rankId !== id,
+  );
+  state.rankHistory.push(id);
+  if (state.rankHistory.length > MAX_RANK_HISTORY) state.rankHistory.shift();
+};
 
 export const createRankSlice: StateCreator<
   AppState,
@@ -59,12 +92,24 @@ export const createRankSlice: StateCreator<
       const current = state.ranks[state.activeRankId];
       if (!current) return;
 
-      const totalCells = current.type === "list" ? newConfig.rows : newConfig.rows * newConfig.cols;
+      const totalCells =
+        current.type === "list"
+          ? newConfig.rows
+          : newConfig.rows * newConfig.cols;
 
-      if (totalCells > current.cells.length) {
-        ensureCells(current.cells, totalCells - 1);
-      } else if (totalCells < current.cells.length) {
-        current.cells = current.cells.slice(0, totalCells);
+      if (current.type === "list") {
+        if (totalCells > current.cells.length) {
+          ensureCells(current.cells, totalCells - 1);
+        } else if (totalCells < current.cells.length) {
+          current.cells = current.cells.slice(0, totalCells);
+        }
+      } else if (totalCells !== current.cells.length) {
+        current.cells = resizeCells(
+          current.cells,
+          current.config.cols,
+          newConfig.rows,
+          newConfig.cols,
+        );
       }
       current.config = newConfig;
       current.updatedAt = Date.now();
@@ -74,7 +119,11 @@ export const createRankSlice: StateCreator<
     set((state) => {
       const current = state.ranks[state.activeRankId];
       if (current) {
-        (current as any)[key] = !(current as any)[key];
+        const toggles = current as unknown as Record<
+          VisualToggleKey,
+          boolean | undefined
+        >;
+        toggles[key] = !toggles[key];
         current.updatedAt = Date.now();
       }
     }),
@@ -83,6 +132,7 @@ export const createRankSlice: StateCreator<
       const current = state.ranks[state.activeRankId];
       if (current && current.cells[index]) {
         current.cells[index].imageSrc = dataUrl;
+        trackImage(state.inbox, dataUrl);
         current.updatedAt = Date.now();
       }
     }),
@@ -91,6 +141,9 @@ export const createRankSlice: StateCreator<
       const current = state.ranks[state.activeRankId];
       if (current && current.cells[index]) {
         Object.assign(current.cells[index], data);
+        if (typeof data.imageSrc === "string" && data.imageSrc) {
+          trackImage(state.inbox, data.imageSrc);
+        }
         current.updatedAt = Date.now();
       }
     }),
@@ -148,24 +201,7 @@ export const createRankSlice: StateCreator<
 
       if (!cleared) return;
 
-      /* The point of a recall is that the image is still yours afterwards, so if
-         it was never in the library (it arrived from a URL or a direct upload)
-         it is filed into the stash now rather than evaporating. */
-      const alreadyTracked = state.inbox.collections.some((c) =>
-        c.items.some((i) => i.imageSrc === imageSrc)
-      );
-      if (!alreadyTracked) {
-        const targetId =
-          state.inbox.activeCollectionId === "all-images"
-            ? state.inbox.lastTargetCollectionId ?? state.inbox.collections[0]?.id
-            : state.inbox.activeCollectionId;
-        const col = state.inbox.collections.find((c) => c.id === targetId);
-        col?.items.unshift({
-          id: `inbox-recalled-${Date.now()}`,
-          imageSrc,
-          createdAt: Date.now(),
-        });
-      }
+      trackImage(state.inbox, imageSrc);
 
       current.updatedAt = Date.now();
     }),
@@ -182,11 +218,14 @@ export const createRankSlice: StateCreator<
     set((state) => {
       const current = state.ranks[state.activeRankId];
       if (current) {
-        const row = current.tierRows.find(r => r.id === rowId);
+        const row = current.tierRows.find((r) => r.id === rowId);
         if (row) {
-          const item = row.items.find(i => i.id === itemId);
+          const item = row.items.find((i) => i.id === itemId);
           if (item) {
             Object.assign(item, data);
+            if (typeof data.imageSrc === "string" && data.imageSrc) {
+              trackImage(state.inbox, data.imageSrc);
+            }
             current.updatedAt = Date.now();
           }
         }
@@ -221,9 +260,9 @@ export const createRankSlice: StateCreator<
     set((state) => {
       const current = state.ranks[state.activeRankId];
       if (current) {
-        const row = current.tierRows.find(r => r.id === rowId);
+        const row = current.tierRows.find((r) => r.id === rowId);
         if (row) {
-          row.items = row.items.filter(i => i.id !== itemId);
+          row.items = row.items.filter((i) => i.id !== itemId);
           current.updatedAt = Date.now();
         }
       }
@@ -235,39 +274,66 @@ export const createRankSlice: StateCreator<
       // in light mode does not open as a black rectangle.
       const newRank = createBlankRank(
         type,
-        defaultBoardBackground(state.theme?.isDark ?? true)
+        defaultBoardBackground(state.theme?.isDark ?? true),
       );
+      rememberRank(state, state.activeRankId);
       state.activeRankId = newRank.id;
-      state.ranks[newRank.id] = newRank as any;
+      state.ranks[newRank.id] = newRank;
     }),
   handleNewRankLikeCurrent: () => {
     const source = get().ranks[get().activeRankId];
     if (!source) return undefined;
     const newRank = createRankLike(source);
     set((state) => {
+      rememberRank(state, state.activeRankId);
       state.activeRankId = newRank.id;
-      state.ranks[newRank.id] = newRank as any;
+      state.ranks[newRank.id] = newRank;
     });
     return newRank.id;
   },
 
-  handleDeleteRank: (id) =>
+  handleDeleteRank: (id) => get().handleDeleteRanks([id]),
+
+  handleDeleteRanks: (ids, purgeLibrary = false) =>
     set((state) => {
-      delete state.ranks[id];
-      const remainingIds = Object.keys(state.ranks);
-      if (remainingIds.length === 0) {
+      const doomed = new Set(ids.filter((id) => state.ranks[id]));
+      if (doomed.size === 0) return;
+
+      if (purgeLibrary) {
+        const purgeable = new Set(
+          exclusiveProjectImages(state.ranks, [...doomed]),
+        );
+        state.inbox.collections.forEach((collection) => {
+          collection.items = collection.items.filter(
+            (item) => !purgeable.has(item.imageSrc),
+          );
+        });
+      }
+
+      doomed.forEach((id) => {
+        delete state.ranks[id];
+      });
+      state.rankHistory = (state.rankHistory ?? []).filter(
+        (rankId) => !doomed.has(rankId),
+      );
+
+      if (Object.keys(state.ranks).length === 0) {
         const newRank = createBlankRank(
           "ranking",
-          defaultBoardBackground(state.theme?.isDark ?? true)
+          defaultBoardBackground(state.theme?.isDark ?? true),
         );
         state.activeRankId = newRank.id;
-        state.ranks[newRank.id] = newRank as any;
-      } else if (state.activeRankId === id) {
-        state.activeRankId = remainingIds[0];
+        state.ranks[newRank.id] = newRank;
+        state.rankHistory = [];
+      } else if (doomed.has(state.activeRankId)) {
+        const previous = state.rankHistory[state.rankHistory.length - 1];
+        state.activeRankId = previous ?? resolveActiveRankId(state.ranks, "");
       }
     }),
   setActiveRankId: (id) =>
     set((state) => {
+      if (id === state.activeRankId || !state.ranks[id]) return;
+      rememberRank(state, state.activeRankId);
       state.activeRankId = id;
     }),
 });
@@ -275,4 +341,3 @@ export const createRankSlice: StateCreator<
 /** Gives a row an id only if it arrived without one, so ids survive a save. */
 const ensureTierRowId = (row: TierRow): TierRow =>
   row.id?.trim() ? row : { ...row, id: newTierRowId() };
-

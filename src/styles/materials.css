@@ -1,13 +1,14 @@
-
-
 @layer components {
-
-
   .material {
     background-color: var(--material-regular-tint);
     background-image: var(--material-grain), var(--material-specular);
   }
   .material-thick {
+    background-color: var(--material-thick-tint);
+    background-image: var(--material-grain), var(--material-specular);
+  }
+
+  .material-popover {
     background-color: var(--material-thick-tint);
     background-image: var(--material-grain), var(--material-specular);
   }
@@ -26,9 +27,6 @@
     background-image: var(--material-grain);
   }
 
-
-
-
   .rail-elevation {
     box-shadow: var(--material-shadow-high);
   }
@@ -37,7 +35,6 @@
       box-shadow: none;
     }
   }
-
 
   .media-scrim {
     background-color: rgba(0, 0, 0, 0.46);
@@ -49,10 +46,6 @@
 }
 
 @layer utilities {
-
-
-
-
   .material {
     -webkit-backdrop-filter: blur(var(--material-regular-blur))
       saturate(var(--material-saturation));
@@ -81,6 +74,15 @@
       var(--material-shadow-high);
   }
 
+  .material-popover {
+    -webkit-backdrop-filter: blur(var(--material-thick-blur))
+      saturate(var(--material-saturation));
+    backdrop-filter: blur(var(--material-thick-blur))
+      saturate(var(--material-saturation));
+    box-shadow:
+      inset 0 0 0 0.5px var(--material-edge-strong),
+      var(--material-shadow-high);
+  }
 
   .material-chrome {
     -webkit-backdrop-filter: blur(var(--material-regular-blur))
@@ -90,23 +92,16 @@
     box-shadow: inset 0 -0.5px 0 0 var(--material-hairline);
   }
 
-
-
-
   .card-veil {
     background-color: var(--material-card-tint);
     background-image: var(--material-grain);
   }
 
-
   .material-lit {
     background-image: var(--material-grain), var(--material-specular);
   }
 
-
   .material-card {
     box-shadow: inset 0 0 0 0.5px var(--material-hairline);
   }
-
-
 }

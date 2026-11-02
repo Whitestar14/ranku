@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React from "react";
 import { Modal } from "@/components/ui/Modal";
 import { ImageFormat } from "@/utils/imageUtils";
-import { FileImage, Copy } from "lucide-react";
+import { Copy } from "lucide-react";
+import { PixelIcon } from "@/components/pixel/PixelIcon";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Button } from "@/components/ui/Button";
 
@@ -16,6 +17,10 @@ interface ExportModalProps {
   onCopyImage?: (qualityScale: number, trimPadding: boolean) => void;
   trimPadding: boolean;
   onTrimPaddingChange: (trim: boolean) => void;
+  format: ImageFormat;
+  quality: number;
+  onFormatChange: (format: ImageFormat) => void;
+  onQualityChange: (quality: number) => void;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
@@ -25,10 +30,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   onCopyImage,
   trimPadding,
   onTrimPaddingChange,
+  format,
+  quality,
+  onFormatChange,
+  onQualityChange,
 }) => {
-  const [format, setFormat] = useState<ImageFormat>("png");
-  const [quality, setQuality] = useState<number>(2);
-
   return (
     <Modal
       isOpen={isOpen}
@@ -43,7 +49,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           <Button
             fullWidth
             size="lg"
-            icon={<FileImage size={18} />}
+            shape="pill"
+            icon={<PixelIcon name="download" size={18} />}
             onClick={() => {
               onExportImage(format, quality, trimPadding);
               onClose();
@@ -55,6 +62,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             fullWidth
             size="lg"
             variant="gray"
+            shape="pill"
             icon={<Copy size={18} />}
             onClick={() => {
               if (onCopyImage) onCopyImage(quality, trimPadding);
@@ -72,7 +80,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         </span>
         <SegmentedControl
           value={format}
-          onChange={(val) => setFormat(val as ImageFormat)}
+          onChange={(val) => onFormatChange(val as ImageFormat)}
           options={[
             { value: "png", label: "PNG" },
             { value: "jpeg", label: "JPG" },
@@ -94,8 +102,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         />
         <p className="text-caption-1 text-muted leading-snug">
           {trimPadding
-            ? "The image ends where your artwork does."
-            : "Keeps the board's margin around the artwork."}
+            ? "Fit tightly around the artwork."
+            : "Keep the board's margin around the artwork."}
         </p>
       </div>
 
@@ -105,7 +113,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         </span>
         <SegmentedControl
           value={quality.toString()}
-          onChange={(val) => setQuality(parseInt(val))}
+          onChange={(val) => onQualityChange(parseInt(val))}
           options={[
             { value: "1", label: "1x (SD)" },
             { value: "2", label: "2x (HD)" },

@@ -10,9 +10,12 @@ import { useStore } from "@/store/useStore";
 import { useShallow } from "zustand/react/shallow";
 import { useToast } from "@/context/ToastContext";
 import { useImagePresenceSets } from "@/hooks/useImagePresenceSets";
-import { useInboxItemInteraction } from "@/hooks/useInboxItemInteraction";
 import { readFileAsDataURL } from "@/utils/imageUtils";
-import { scheduleDockExpand, DOCK_EXPAND_EVENT } from "@/utils/inboxDrag";
+import {
+  requestDockExpand,
+  DOCK_EXPAND_EVENT,
+  DOCK_TOGGLE_EVENT,
+} from "@/utils/inboxDrag";
 import type { ImageSourcePreference, InboxItem } from "@/types";
 import type { DockSurface, InboxTab } from "@/components/Inbox/types";
 import { runActivity, useActivityState } from "@/state/activityState";
@@ -23,7 +26,6 @@ export function useInboxController(
   requestConfirm: (title: string, message: string, action: () => void) => void,
 ) {
   const addToast = useToast();
-  const onInteract = useInboxItemInteraction();
   const { inboxImageSet: usedImageSrcs, boardImageSet: usedOnBoard } =
     useImagePresenceSets();
 
@@ -32,6 +34,8 @@ export function useInboxController(
     activeCollectionId,
     lastTargetCollectionId,
     interactionState,
+    placement,
+    setPlacement,
     switchCollection,
     addCollection,
     deleteCollection,
@@ -54,6 +58,8 @@ export function useInboxController(
       activeCollectionId: s.inbox.activeCollectionId,
       lastTargetCollectionId: s.inbox.lastTargetCollectionId,
       interactionState: s.interactionState,
+      placement: s.placement,
+      setPlacement: s.setPlacement,
       switchCollection: s.switchCollection,
       addCollection: s.addCollection,
       deleteCollection: s.deleteCollection,
@@ -65,7 +71,7 @@ export function useInboxController(
       handleRecallFromBoard: s.handleRecallFromBoard,
       handleUpdateLastTarget: s.handleUpdateLastTarget,
       setIsDraggingFromDock: s.setIsDraggingFromDock,
-      isDraggingFromDock: s.inbox.isDraggingFromDock,
+      isDraggingFromDock: s.isDraggingFromDock,
       handleRestoreItem: s.handleRestoreItem,
       handleInboxUpload: s.handleInboxUpload,
       searchSource: (s.preferences.imageSource ??
@@ -108,7 +114,28 @@ export function useInboxController(
 
   useEffect(() => {
     setSelectedItemIds(new Set());
-  }, [activeCollectionId]);
+    setPlacement(null);
+  }, [activeCollectionId, activeTab, setPlacement]);
+
+  /* Placement is a deliberate mode; leaving the dock or its tab ends it. */
+  useEffect(() => {
+    if (!placement) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPlacement(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [placement, setPlacement]);
+
+  /* Choosing a board target switches to placing; it cancels the bulk bar. */
+  useEffect(() => {
+    if (
+      interactionState?.type === "cell" ||
+      interactionState?.type === "tier-item"
+    ) {
+      setSelectedItemIds((prev) => (prev.size === 0 ? prev : new Set()));
+    }
+  }, [interactionState]);
 
   useEffect(() => {
     const handleOpenSearch = () => {
@@ -123,23 +150,79 @@ export function useInboxController(
 
   useEffect(() => {
     const handleExpand = () => setIsExpanded(true);
+
+    const handleToggle = () =>
+      setIsExpanded((open) => {
+        if (open) setPlacement(null);
+        return !open;
+      });
     window.addEventListener(DOCK_EXPAND_EVENT, handleExpand);
-    return () => window.removeEventListener(DOCK_EXPAND_EVENT, handleExpand);
+    window.addEventListener(DOCK_TOGGLE_EVENT, handleToggle);
+    return () => {
+      window.removeEventListener(DOCK_EXPAND_EVENT, handleExpand);
+      window.removeEventListener(DOCK_TOGGLE_EVENT, handleToggle);
+    };
+  }, [setPlacement]);
+
+  const collectionIdForActions = isAllView ? "all-images" : activeCollectionId;
+
+  const clearSelection = useCallback(() => {
+    setSelectedItemIds((prev) => (prev.size === 0 ? prev : new Set()));
   }, []);
 
+  const commitCollectionRename = useCallback(
+    (colId: string) => {
+      if (tempName.trim()) renameCollection(colId, tempName);
+      setEditingNameId(null);
+    },
+    [tempName, renameCollection],
+  );
+
+  const startPlacement = useCallback(
+    (itemId: string) => {
+      const item = collections
+        .flatMap((c) => c.items)
+        .find((i) => i.id === itemId);
+      if (!item) return;
+      setPlacement({
+        itemId: item.id,
+        collectionId: collectionIdForActions,
+        imageSrc: item.imageSrc,
+      });
+      setSelectedItemIds(new Set());
+    },
+    [collections, collectionIdForActions, setPlacement],
+  );
+
+  const cancelPlacement = useCallback(() => setPlacement(null), [setPlacement]);
+
   const handleItemClick = useCallback(
-    (e: React.MouseEvent, itemId: string) => {
-      // Toggle selection for bulk actions
+    (_e: React.MouseEvent, itemId: string) => {
+      const store = useStore.getState();
+
+      /* Already carrying an image: tapping another one swaps what is carried. */
+      if (store.placement) {
+        const item = collections
+          .flatMap((c) => c.items)
+          .find((i) => i.id === itemId);
+        if (item) {
+          store.setPlacement({
+            itemId: item.id,
+            collectionId: collectionIdForActions,
+            imageSrc: item.imageSrc,
+          });
+        }
+        return;
+      }
+
       setSelectedItemIds((prev) => {
         const next = new Set(prev);
         if (next.has(itemId)) next.delete(itemId);
         else next.add(itemId);
         return next;
       });
-      // Fire interaction event for tap-to-drop functionality
-      onInteract(itemId, isAllView ? "all-images" : activeCollectionId);
     },
-    [onInteract, isAllView, activeCollectionId],
+    [collections, collectionIdForActions],
   );
 
   const handleBulkDelete = useCallback(() => {
@@ -147,14 +230,20 @@ export function useInboxController(
     const n = selectedItemIds.size;
     requestConfirm(
       `Delete ${n} item${n > 1 ? "s" : ""}?`,
-      "This action cannot be undone.",
+      "They leave the Library. Boards that use them keep their copies.",
       () => {
         selectedItemIds.forEach((id) => removeInboxItem(id));
-        setSelectedItemIds(new Set());
+        clearSelection();
         addToast("info", `Removed ${n} items`);
       },
     );
-  }, [selectedItemIds, removeInboxItem, addToast, requestConfirm]);
+  }, [
+    selectedItemIds,
+    removeInboxItem,
+    addToast,
+    requestConfirm,
+    clearSelection,
+  ]);
 
   const toastAddedToCollection = useCallback(
     (imageSrc: string, colId: string) => {
@@ -174,8 +263,9 @@ export function useInboxController(
         lastTargetCollectionId &&
         collections.some((c) => c.id === lastTargetCollectionId)
       ) {
-        handleAddToCollection(imageSrc, lastTargetCollectionId);
-        toastAddedToCollection(imageSrc, lastTargetCollectionId);
+        const added = handleAddToCollection(imageSrc, lastTargetCollectionId);
+        if (added) toastAddedToCollection(imageSrc, lastTargetCollectionId);
+        else addToast("info", "Already in the collection");
       } else {
         setPendingPickerImage(imageSrc);
         setActiveTab("picker");
@@ -186,6 +276,7 @@ export function useInboxController(
       collections,
       handleAddToCollection,
       toastAddedToCollection,
+      addToast,
     ],
   );
 
@@ -230,9 +321,10 @@ export function useInboxController(
       if (list.length === 1 && list[0].size < 512_000) {
         void (async () => {
           try {
-            handleInboxUpload(await readFileAsDataURL(list[0]));
-          } catch (err) {
-            console.error("Failed to parse file", err);
+            const added = handleInboxUpload(await readFileAsDataURL(list[0]));
+            if (!added) addToast("info", "Already in the collection");
+          } catch {
+            addToast("error", "Could not read that image");
           }
         })();
         return;
@@ -244,28 +336,112 @@ export function useInboxController(
           : `Importing ${list.length} images`,
         async () => {
           let failed = 0;
+          let skipped = 0;
           for (let i = 0; i < list.length; i++) {
             try {
-              handleInboxUpload(await readFileAsDataURL(list[i]));
-            } catch (err) {
+              if (!handleInboxUpload(await readFileAsDataURL(list[i]))) {
+                skipped++;
+              }
+            } catch {
               failed++;
-              console.error("Failed to parse file", err);
             }
             useActivityState.getState().setProgress((i + 1) / list.length);
           }
-          if (failed === list.length)
+          if (failed === list.length) {
+            addToast("error", "Could not read those images");
             throw new Error("No images could be read");
+          }
+          if (failed > 0) {
+            addToast(
+              "info",
+              failed === 1
+                ? "One image could not be read"
+                : `${failed} images could not be read`,
+            );
+          }
+          if (skipped > 0) {
+            addToast(
+              "info",
+              skipped === 1
+                ? "One image was already in the collection"
+                : `${skipped} images were already in the collection`,
+            );
+          }
         },
         {
-          successLabel: `${list.length} ${
-            list.length === 1 ? "image" : "images"
-          } added`,
+          successLabel: "Import complete",
           errorLabel: "Import failed",
         },
       );
     },
-    [handleInboxUpload],
+    [handleInboxUpload, addToast],
   );
+
+  /* Images copied in another window (or another app) land here. A selected
+     board position is the most specific target; otherwise the stash is. */
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (
+        target?.closest("input, textarea, select, [contenteditable='true']")
+      ) {
+        return;
+      }
+      const files = Array.from(e.clipboardData?.files ?? []).filter((f) =>
+        f.type.startsWith("image/"),
+      );
+      if (files.length === 0) return;
+      e.preventDefault();
+
+      void (async () => {
+        const images: string[] = [];
+        let failed = 0;
+        for (const file of files) {
+          try {
+            images.push(await readFileAsDataURL(file));
+          } catch {
+            failed++;
+          }
+        }
+        if (images.length === 0) {
+          addToast("error", "Could not paste that image");
+          return;
+        }
+        if (failed > 0) {
+          addToast(
+            "info",
+            failed === 1
+              ? "One pasted image could not be read"
+              : `${failed} pasted images could not be read`,
+          );
+        }
+
+        const state = useStore.getState();
+        const selected = state.interactionState;
+        if (selected?.type === "cell" && images.length === 1) {
+          state.handleUpdateCell(selected.index, { imageSrc: images[0] });
+          state.setInteractionState(null);
+          addToast("success", `Pasted into position ${selected.index + 1}`);
+          return;
+        }
+
+        const added = images.filter((src) => handleInboxUpload(src)).length;
+        if (added === 0) {
+          addToast("info", "Already in the collection");
+        } else {
+          addToast(
+            "success",
+            added === 1
+              ? "Image added to stash"
+              : `${added} images added to stash`,
+          );
+        }
+      })();
+    };
+
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [handleInboxUpload, addToast]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -289,14 +465,14 @@ export function useInboxController(
               { type: "cell", index: (source as { index: number }).index },
               { type: "inbox" },
             );
-            scheduleDockExpand(setIsExpanded);
+            requestDockExpand(400);
           } else if (source.type === "tier-item") {
             const t = source as { rowId: string; itemId: string };
             handleItemTransfer(
               { type: "tier", rowId: t.rowId, itemId: t.itemId },
               { type: "inbox" },
             );
-            scheduleDockExpand(setIsExpanded);
+            requestDockExpand(400);
           }
         } catch {
           /* ignore */
@@ -333,23 +509,28 @@ export function useInboxController(
 
   const handleDragLeave = useCallback(() => setIsDragOver(false), []);
 
-  const toggleExpand = useCallback(() => setIsExpanded((v) => !v), []);
+  const toggleExpand = useCallback(() => {
+    if (isExpanded) setPlacement(null);
+    setIsExpanded((v) => !v);
+  }, [isExpanded, setPlacement]);
 
   const handleCollectionPick = useCallback(
     (colId: string) => {
       if (!pendingPickerImage) return;
       const imageSrc = pendingPickerImage;
-      handleAddToCollection(imageSrc, colId);
+      const added = handleAddToCollection(imageSrc, colId);
       handleUpdateLastTarget(colId);
       setPendingPickerImage(null);
       setActiveTab("search");
-      toastAddedToCollection(imageSrc, colId);
+      if (added) toastAddedToCollection(imageSrc, colId);
+      else addToast("info", "Already in the collection");
     },
     [
       pendingPickerImage,
       handleAddToCollection,
       handleUpdateLastTarget,
       toastAddedToCollection,
+      addToast,
     ],
   );
 
@@ -362,7 +543,7 @@ export function useInboxController(
       }
       requestConfirm(
         `Delete "${col.name}"?`,
-        `This will permanently delete the collection and its ${itemCount} item${itemCount === 1 ? "" : "s"}. This action cannot be undone.`,
+        `The collection and its ${itemCount} item${itemCount === 1 ? "" : "s"} leave the Library.`,
         () => deleteCollection(col.id),
       );
     },
@@ -386,6 +567,9 @@ export function useInboxController(
     activeCollectionId,
     lastTargetCollectionId,
     interactionState,
+    placement,
+    startPlacement,
+    cancelPlacement,
     switchCollection,
     addCollection,
     renameCollection,
@@ -408,8 +592,9 @@ export function useInboxController(
     setEditingNameId,
     tempName,
     setTempName,
+    commitCollectionRename,
     selectedItemIds,
-    setSelectedItemIds,
+    clearSelection,
     isDragOver,
     setIsDragOver,
     handleItemClick,

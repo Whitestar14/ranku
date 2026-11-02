@@ -1,95 +1,88 @@
 import React from "react";
 import { Check, X } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { cn } from "@/utils";
 
 interface AdjustOverlayProps {
-  /**
-   * `tile` is the big board tile with the full hint; `compact` is the small
-   * thumbnail used by list rows and tier items.
-   */
-  variant?: "tile" | "compact";
   onPointerDown: (e: React.PointerEvent) => void;
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: (e: React.PointerEvent) => void;
   onPointerCancel: (e: React.PointerEvent) => void;
-  onCancel: () => void;
-  onSave: () => void;
 }
 
-const SURFACE: Record<
-  "tile" | "compact",
-  { box: string; hint: string; button: string; icon: number; gap: string }
-> = {
-  tile: {
-    box: "z-20 flex-col justify-between p-2",
-    hint: "px-2.5 py-1",
-    button: "w-9 h-9",
-    icon: 17,
-    gap: "gap-2",
-  },
-  compact: {
-    box: "z-30 flex-col items-center justify-between p-1",
-    hint: "px-2 py-0.5",
-    button: "w-6 h-6",
-    icon: 12,
-    gap: "gap-1",
-  },
-};
-
-/**
- * The scrim that owns pan/pinch/zoom while an image is being repositioned.
- * `touch-none` is what lets the pointer handlers see touch moves at all.
- */
+/** The dimmed, draggable area over the artwork. Controls live outside it. */
 export const AdjustOverlay: React.FC<AdjustOverlayProps> = ({
-  variant = "tile",
   onPointerDown,
   onPointerMove,
   onPointerUp,
   onPointerCancel,
+}) => (
+  <div
+    className="absolute inset-0 z-20 cursor-move select-none touch-none"
+    style={{ background: "rgba(0,0,0,0.45)" }}
+    onMouseDown={(e) => e.stopPropagation()}
+    onPointerDown={onPointerDown}
+    onPointerMove={onPointerMove}
+    onPointerUp={onPointerUp}
+    onPointerCancel={onPointerCancel}
+  />
+);
+
+interface AdjustControlsProps {
+  onCancel: () => void;
+  onSave: () => void;
+  /** Smaller buttons for list rows and tier items. */
+  compact?: boolean;
+  className?: string;
+}
+
+export const AdjustControls: React.FC<AdjustControlsProps> = ({
   onCancel,
   onSave,
+  compact = false,
+  className,
 }) => {
-  const style = SURFACE[variant];
+  const size = compact ? "h-6 w-6" : "h-8 w-8";
+  const icon = compact ? 12 : 15;
 
   return (
     <div
-      className={`absolute inset-0 flex cursor-move select-none touch-none ${style.box}`}
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      data-export-hide=""
+      className={cn(
+        "flex items-center gap-0.5 rounded-full p-0.5 material-thick",
+        className,
+      )}
+      onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
     >
-      <span
-        className={`media-scrim text-caption-2 font-semibold rounded-full ${style.hint}`}
-      >
-        {variant === "tile" ? "Drag to reposition · Scroll to zoom" : "Move"}
-      </span>
-      <div className={`flex ${style.gap} ${variant === "tile" ? "self-center" : ""}`}>
-        <button
-          type="button"
-          aria-label="Cancel adjustments"
-          onClick={(e) => {
-            e.stopPropagation();
-            onCancel();
-          }}
-          className={`flex items-center justify-center media-scrim rounded-full active:scale-90 transition-transform ${style.button}`}
-        >
-          <X size={style.icon} />
-        </button>
-        <button
-          type="button"
-          aria-label="Save adjustments"
-          onClick={(e) => {
-            e.stopPropagation();
-            onSave();
-          }}
-          className={`flex items-center justify-center rounded-full text-on-accent active:scale-90 transition-transform ${style.button}`}
-          style={{ background: "var(--color-primary)" }}
-        >
-          <Check size={style.icon} />
-        </button>
-      </div>
+      <Button
+        variant="gray"
+        size="xs"
+        shape="pill"
+        iconOnly
+        expandTap={false}
+        aria-label="Cancel adjustments"
+        icon={<X size={icon} strokeWidth={2.4} />}
+        onClick={(e) => {
+          e.stopPropagation();
+          onCancel();
+        }}
+        className={cn(size, "shadow-none")}
+      />
+      <Button
+        variant="filled"
+        size="xs"
+        shape="pill"
+        iconOnly
+        expandTap={false}
+        aria-label="Save adjustments"
+        icon={<Check size={icon} strokeWidth={2.6} />}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSave();
+        }}
+        className={cn(size, "shadow-none")}
+      />
     </div>
   );
 };

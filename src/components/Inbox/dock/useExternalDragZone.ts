@@ -26,25 +26,25 @@ export function useExternalDragZone() {
 
     const handleOver = (e: DragEvent) => {
       if (!isExternal(e)) return;
+      e.preventDefault();
       setIsExternalDrag(true);
       window.clearTimeout(idle);
       idle = window.setTimeout(() => setIsExternalDrag(false), IDLE_TIMEOUT);
     };
 
-    const swallow = (e: DragEvent) => {
+    /* A file dropped anywhere else would navigate the tab to it. */
+    const handleDrop = (e: DragEvent) => {
       if (isExternal(e)) e.preventDefault();
       stop();
     };
 
     window.addEventListener("dragover", handleOver);
-    window.addEventListener("dragover", swallow);
-    window.addEventListener("drop", swallow);
+    window.addEventListener("drop", handleDrop);
     window.addEventListener("dragend", stop);
     return () => {
       window.clearTimeout(idle);
       window.removeEventListener("dragover", handleOver);
-      window.removeEventListener("dragover", swallow);
-      window.removeEventListener("drop", swallow);
+      window.removeEventListener("drop", handleDrop);
       window.removeEventListener("dragend", stop);
     };
   }, []);

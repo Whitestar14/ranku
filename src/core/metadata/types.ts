@@ -1,10 +1,10 @@
-export type MetadataSource = "jikan" | "anilist";
+export type MetadataSource = "tenrai" | "anilist";
 export type SearchMode = "anime" | "characters";
 export type SourcePreference = "auto" | "myanimelist" | "anilist";
 
 /** Human labels, so the UI never has to know provider ids. */
 export const SOURCE_LABELS: Record<MetadataSource, string> = {
-  jikan: "MyAnimeList",
+  tenrai: "MyAnimeList",
   anilist: "AniList",
 };
 

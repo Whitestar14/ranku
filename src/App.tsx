@@ -1,10 +1,9 @@
-import React from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { AnimatePresence, motion, useTransform } from "motion/react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Controls } from "@/components/Controls";
-import { GridSettingsSidebar } from "@/components/GridSettingsSidebar";
-import { Inbox } from "@/components/Inbox";
-import { Library } from "@/components/Library";
+import { ProjectSettingsSidebar } from "@/components/ProjectSettingsSidebar";
+import { ProjectsModal } from "@/components/ProjectsModal";
 import { ShortcutsSheet } from "@/components/ShortcutsSheet";
 import { LoadingScreen } from "@/components/AppLogo";
 import { BoardView, BoardWatermark } from "@/components/app/BoardView";
@@ -16,10 +15,16 @@ import {
   ExportModalHost,
 } from "@/components/app/ModalHosts";
 import { getContrastColor } from "@/theme/palettes";
-import { SHEET_WIDTH } from "@/utils/boardStyle";
+import { SHEET_WIDTH, resolveBoardBackground } from "@/utils/boardStyle";
+import { useStore } from "@/store/useStore";
 
 import { useAppController } from "@/hooks/useAppController";
+import { useProjectDeletion } from "@/hooks/useProjectDeletion";
 import { useScrollDepth } from "@/hooks/useScrollDepth";
+
+const Inbox = React.lazy(() =>
+  import("@/components/Inbox").then((mod) => ({ default: mod.Inbox })),
+);
 
 export const App: React.FC = () => {
   return (
@@ -34,28 +39,39 @@ const AppContent: React.FC = () => {
 
   const { ref: mainRef, isScrolled, depth } = useScrollDepth<HTMLElement>();
 
-  // Scroll-linked depth: the board eases away from the viewer as it scrolls and
-  // settles as it comes back, which reads as physical distance rather than a
-  // list that happens to move. The small cap matters — past about 2% the text
-  // on the tiles starts to soften, which looks like a bug rather than depth.
+  /* Mount the dock once the first frame has been handed to the compositor.
+     It is `position: fixed`, so arriving late costs no layout shift. */
+  const [dockReady, setDockReady] = useState(false);
+  useEffect(() => {
+    const idle = (cb: () => void) =>
+      typeof requestIdleCallback === "function"
+        ? requestIdleCallback(cb, { timeout: 900 })
+        : window.setTimeout(cb, 180);
+    const cancel = (id: number) =>
+      typeof cancelIdleCallback === "function"
+        ? cancelIdleCallback(id)
+        : window.clearTimeout(id);
+    const handle = idle(() => setDockReady(true));
+    return () => cancel(handle);
+  }, []);
+
   const boardScale = useTransform(depth, [0, 1], [1, 0.982]);
   const boardY = useTransform(depth, [0, 1], [0, 10]);
 
   const activeRank = ctrl.activeRank;
+  const theme = useStore((s) => s.theme);
+  const requestProjectDelete = useProjectDeletion(ctrl.confirmAction);
 
   if (!activeRank) return <LoadingScreen />;
 
-  const textColor = getContrastColor(activeRank.backgroundColor);
+  const sheetColor = resolveBoardBackground(activeRank.backgroundColor, {
+    isDark: theme?.isDark,
+  });
+  const textColor = getContrastColor(sheetColor);
   const mainPadding =
     activeRank.type === "tierlist" ? "p-2 md:p-8" : "p-4 md:p-8";
-  // Padding is expressed as responsive classes rather than read from
-  // `window.innerWidth` during render, which never reacted to a resize.
   const containerPaddingClass =
-    activeRank.type === "tierlist"
-      ? "p-4 md:p-8"
-      : activeRank.style === "card"
-        ? "p-8"
-        : "p-4";
+    activeRank.type === "tierlist" ? "p-4 md:p-8" : "p-4";
 
   return (
     <>
@@ -69,8 +85,8 @@ const AppContent: React.FC = () => {
         <Controls
           projectName={activeRank.title}
           isScrolled={isScrolled}
-          onOpenLibrary={() => ctrl.setIsLibraryOpen(true)}
-          onToggleSidebar={() => ctrl.setIsSidebarOpen(!ctrl.isSidebarOpen)}
+          onOpenProjects={() => ctrl.setIsProjectsOpen(true)}
+          onToggleSidebar={ctrl.toggleSidebar}
           onOpenExport={ctrl.openExport}
           isSidebarOpen={ctrl.isSidebarOpen}
           onCreateProject={ctrl.createProjectLikeCurrent}
@@ -88,23 +104,14 @@ const AppContent: React.FC = () => {
           onClose={ctrl.closeShortcuts}
         />
 
-        <Library
-          isOpen={ctrl.isLibraryOpen}
-          onClose={() => ctrl.setIsLibraryOpen(false)}
+        <ProjectsModal
+          isOpen={ctrl.isProjectsOpen}
+          onClose={() => ctrl.setIsProjectsOpen(false)}
           ranks={Object.values(ctrl.ranks)}
           activeRankId={ctrl.activeRankId}
           onSelectRank={ctrl.setActiveRankId}
-          onDeleteRank={(id) => {
-            const rank = ctrl.ranks[id];
-            if (!rank) return;
-            ctrl.confirmAction(
-              `Delete "${rank.title}"?`,
-              "This cannot be undone.",
-              () => {
-                ctrl.handleDeleteRank(id);
-              },
-            );
-          }}
+          onDeleteRank={(id) => requestProjectDelete([id])}
+          onDeleteRanks={(ids) => requestProjectDelete(ids)}
           onNewRank={ctrl.handleNewRank}
           onUpdateRank={ctrl.updateRankById}
         />
@@ -112,7 +119,7 @@ const AppContent: React.FC = () => {
         <DuplicateModalHost />
 
         <div className="flex flex-1 overflow-hidden pt-14">
-          <GridSettingsSidebar
+          <ProjectSettingsSidebar
             isOpen={ctrl.isSidebarOpen}
             onClose={() => ctrl.setIsSidebarOpen(false)}
             requestConfirm={ctrl.confirmAction}
@@ -147,9 +154,7 @@ const AppContent: React.FC = () => {
                   className={`relative ${SHEET_WIDTH[activeRank.type]} transition-[background-color,padding] duration-200 ease-standard ${containerPaddingClass}`}
                   style={{
                     backgroundColor:
-                      activeRank.backgroundColor === "transparent"
-                        ? ""
-                        : activeRank.backgroundColor,
+                      sheetColor === "transparent" ? "" : sheetColor,
                   }}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -170,10 +175,14 @@ const AppContent: React.FC = () => {
               </motion.div>
             </main>
 
-            <Inbox
-              requestConfirm={ctrl.confirmAction}
-              onOpenAbout={ctrl.openAbout}
-            />
+            {dockReady && (
+              <Suspense fallback={null}>
+                <Inbox
+                  requestConfirm={ctrl.confirmAction}
+                  onOpenAbout={ctrl.openAbout}
+                />
+              </Suspense>
+            )}
           </div>
         </div>
       </div>

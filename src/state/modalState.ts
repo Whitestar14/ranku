@@ -1,11 +1,19 @@
 import { create } from "zustand";
 
+/** An opt-in extra carried by a confirmation, e.g. purging the library. */
+export interface ConfirmToggle {
+  label: string;
+  hint?: string;
+  defaultOn?: boolean;
+}
+
 /** Visibility flags for the app's dialogs, and the confirm sheet's request */
 interface ConfirmRequest {
   isOpen: boolean;
   title: string;
   message: string;
-  onConfirm: () => void;
+  toggle?: ConfirmToggle;
+  onConfirm: (checked: boolean) => void;
 }
 
 interface ModalState {
@@ -18,7 +26,12 @@ interface ModalState {
   openAbout: () => void;
   closeAbout: () => void;
 
-  requestConfirm: (title: string, message: string, action: () => void) => void;
+  requestConfirm: (
+    title: string,
+    message: string,
+    action: (checked: boolean) => void,
+    toggle?: ConfirmToggle,
+  ) => void;
   closeConfirm: () => void;
 }
 
@@ -39,14 +52,15 @@ export const useModalState = create<ModalState>((set) => ({
   openAbout: () => set({ isAboutOpen: true }),
   closeAbout: () => set({ isAboutOpen: false }),
 
-  requestConfirm: (title, message, action) =>
+  requestConfirm: (title, message, action, toggle) =>
     set({
       confirm: {
         isOpen: true,
         title,
         message,
-        onConfirm: () => {
-          action();
+        toggle,
+        onConfirm: (checked) => {
+          action(checked);
           set({ confirm: emptyConfirm });
         },
       },

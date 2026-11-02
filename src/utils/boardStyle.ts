@@ -1,4 +1,5 @@
 import type { ProjectType, Rank } from "@/types";
+import { autoBoardBackground } from "@/theme/palettes";
 import { DEFAULT_ASPECT } from "./ui";
 
 const HAIRLINE = "var(--material-hairline)";
@@ -31,11 +32,7 @@ export const tierItemRadius = (height: number, corners: TierCorners) =>
 /** Gutter a board seeds when the Card style is first chosen. */
 export const DEFAULT_CARD_GAP = 8;
 
-/**
- * Global project's board options for reading.
- */
 export interface BoardStyle {
-  /** Card style rounds and separates tiles; seamless tiles share edges. */
   isCard: boolean;
   /** Corner radius in px. A seamless board is square so it reads as one collage. */
   radius: number;
@@ -63,18 +60,12 @@ export interface BoardStyle {
   tierGap: number;
 }
 
-/**
- * How wide the sheet holding the board stands, per project type.
- */
 export const SHEET_WIDTH: Record<ProjectType, string> = {
   ranking: "w-fit max-w-full",
   list: "w-full max-w-3xl",
   tierlist: "w-full max-w-6xl",
 };
 
-/**
- * The active project's style, for use with zustand's `useShallow`.
- */
 export const selectActiveBoard = (state: {
   activeRankId: string;
   ranks: Record<string, Rank>;
@@ -84,11 +75,14 @@ export const selectActiveBoard = (state: {
 };
 
 export const resolveBoardStyle = (rank: Rank): BoardStyle => {
-  const isCard = (rank.style ?? "seamless") === "card";
+  const legacyCard = rank.style === "card";
+  const radius = rank.borderRadius ?? (legacyCard ? DEFAULT_CARD_RADIUS : 0);
+  const gap = rank.gap ?? 0;
+  const isCard = radius > 0 || gap > 0;
   return {
     isCard,
-    radius: isCard ? (rank.borderRadius ?? DEFAULT_CARD_RADIUS) : 0,
-    gap: rank.gap ?? 0,
+    radius,
+    gap,
     borderless: rank.borderless ?? false,
     showNumbers: rank.showNumbers ?? true,
     showTitle: rank.showTitle !== false,
@@ -103,6 +97,15 @@ export const resolveBoardStyle = (rank: Rank): BoardStyle => {
     tierCorners: rank.tierCorners ?? DEFAULT_TIER_CORNERS,
     tierRadius: tierRadiusFor(rank.tierCorners ?? DEFAULT_TIER_CORNERS),
   };
+};
+
+/** Resolves `auto` at paint time so the sheet follows appearance changes. */
+export const resolveBoardBackground = (
+  color: string,
+  theme: { isDark?: boolean },
+): string => {
+  if (color !== "auto") return color;
+  return autoBoardBackground(theme.isDark ?? true);
 };
 
 export const restingTileShadow = ({
@@ -132,19 +135,13 @@ export const restingTileShadow = ({
 
 export const tileStateShadow = ({
   isSelected,
-  isOver,
-  isFileDragOver,
   resting,
 }: {
   isSelected: boolean;
-  isOver: boolean;
-  isFileDragOver: boolean;
   resting: string | undefined;
-}): string | undefined => {
-  if (isSelected) return "0 0 0 2px var(--color-primary)";
-  if (isOver)
-    return "0 0 0 2px var(--color-primary), 0 0 0 6px color-mix(in srgb, var(--color-primary) 22%, transparent)";
-  if (isFileDragOver)
-    return "0 0 0 2px var(--color-primary), 0 0 0 6px color-mix(in srgb, var(--color-primary) 22%, transparent)";
-  return resting;
-};
+}): string | undefined =>
+  isSelected ? "0 0 0 2px var(--color-primary)" : resting;
+
+/** The wash a drop target takes on while something hovers over it. */
+export const dropTint = (amount = 20) =>
+  `color-mix(in srgb, var(--color-primary) ${amount}%, transparent)`;

@@ -10,7 +10,7 @@ import { UrlInputModal } from "@/components/ui/UrlInputModal";
 import { PopoverMenu } from "@/components/ui/PopoverMenu";
 import { Slider } from "@/components/ui/Slider";
 import { RemoteImage } from "@/components/ui/RemoteImage";
-import { AdjustOverlay } from "@/components/ui/AdjustOverlay";
+import { AdjustControls, AdjustOverlay } from "@/components/ui/AdjustOverlay";
 import { widthForHeight } from "@/utils/ui";
 import { useTile } from "./tile/useTile";
 import { selectActiveBoard, tileStateShadow } from "@/utils/boardStyle";
@@ -29,7 +29,6 @@ export const ListRow = React.memo(function ListRow({
 }: ListRowProps) {
   const board = useStore(useShallow(selectActiveBoard));
   const title = useStore((s) => s.ranks[s.activeRankId]?.title ?? "");
-  const handleCellClear = useStore((s) => s.handleCellClear);
   const handleUpdateCell = useStore((s) => s.handleUpdateCell);
   const handleItemTransfer = useStore((s) => s.handleItemTransfer);
   const handleCellUpload = useStore((s) => s.handleCellUpload);
@@ -47,7 +46,6 @@ export const ListRow = React.memo(function ListRow({
     aspectRatio: board?.aspectRatio ?? "3:4",
     update: (patch) => handleUpdateCell(index, patch),
     setImage: (src) => handleCellUpload(index, src),
-    clear: () => handleCellClear(index),
     returnToLibrary: () =>
       handleItemTransfer({ type: "cell", index }, { type: "inbox" }),
     filename: `${title.replace(/\s+/g, "-").toLowerCase() || "image"}-${
@@ -117,7 +115,7 @@ export const ListRow = React.memo(function ListRow({
       className={`group item-enter relative flex items-center gap-3 px-3 py-2.5
         ${board.isCard ? "bg-surface" : `bg-surface ${index > 0 ? "border-t border-border" : ""}`}
         ${!board.isCard && board.borderless ? "border-t-0" : ""}
-        ${isDragging ? "opacity-25 z-0" : "z-10"}
+        ${isDragging ? "opacity-25 z-0" : tile.isAdjusting ? "z-30" : "z-10"}
         ${isOver ? "z-20" : ""}
         transition-colors duration-150
       `}
@@ -174,8 +172,6 @@ export const ListRow = React.memo(function ListRow({
               borderRadius: thumbRadius,
               boxShadow: tileStateShadow({
                 isSelected: tile.isSelected,
-                isOver,
-                isFileDragOver: tile.isFileDragOver,
                 resting: tile.isAdjusting
                   ? "0 0 0 2px var(--color-primary)"
                   : "inset 0 0 0 0.5px var(--material-hairline)",
@@ -187,6 +183,7 @@ export const ListRow = React.memo(function ListRow({
                 src={data.imageSrc!}
                 alt=""
                 decoding="async"
+                colorPlaceholder
                 className="w-full h-full object-cover pointer-events-none"
                 style={tile.imageStyle}
               />
@@ -194,16 +191,10 @@ export const ListRow = React.memo(function ListRow({
 
             {tile.isAdjusting && (
               <AdjustOverlay
-                variant="compact"
                 onPointerDown={tile.adjust.handlePointerDown}
                 onPointerMove={tile.adjust.handlePointerMove}
                 onPointerUp={tile.adjust.handlePointerUp}
                 onPointerCancel={tile.adjust.handlePointerCancel}
-                onCancel={tile.adjust.stop}
-                onSave={() => {
-                  tile.adjust.save();
-                  tile.clearInteraction();
-                }}
               />
             )}
           </div>
@@ -220,6 +211,18 @@ export const ListRow = React.memo(function ListRow({
           >
             <PixelIcon name="upload" size={16} />
           </button>
+        )}
+
+        {tile.isAdjusting && (
+          <AdjustControls
+            compact
+            className="absolute left-1/2 -top-3 z-40 -translate-x-1/2"
+            onCancel={tile.adjust.stop}
+            onSave={() => {
+              tile.adjust.save();
+              tile.clearInteraction();
+            }}
+          />
         )}
       </div>
 
@@ -268,22 +271,24 @@ export const ListRow = React.memo(function ListRow({
       </div>
 
       {/* ── Row menu ────────────────────────────────────────────────── */}
-      <button
-        type="button"
-        data-export-hide=""
-        aria-label={`Row ${index + 1} options`}
-        aria-haspopup="menu"
-        aria-expanded={tile.isMenuOpen}
-        onClick={(e) => tile.openMenu(e, e.currentTarget)}
-        /* No `.affordance`: this sits on the row's own surface, not over
-           artwork, and the class's rest opacity multiplied by `text-muted`
-           made the row's only menu nearly invisible. */
-        className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full
-                   text-muted hover:text-text hover:bg-hover transition-colors
-                   touch-target"
-      >
-        <MoreHorizontal size={17} />
-      </button>
+      {!tile.isAdjusting && (
+        <button
+          type="button"
+          data-export-hide=""
+          aria-label={`Row ${index + 1} options`}
+          aria-haspopup="menu"
+          aria-expanded={tile.isMenuOpen}
+          onClick={(e) => tile.openMenu(e, e.currentTarget)}
+          /* No `.affordance`: this sits on the row's own surface, not over
+             artwork, and the class's rest opacity multiplied by `text-muted`
+             made the row's only menu nearly invisible. */
+          className="shrink-0 flex items-center justify-center w-7 h-7 rounded-full
+                     text-muted hover:text-text hover:bg-hover transition-colors
+                     touch-target"
+        >
+          <MoreHorizontal size={17} />
+        </button>
+      )}
 
       <input
         ref={tile.fileInputRef}
@@ -298,6 +303,7 @@ export const ListRow = React.memo(function ListRow({
         onClose={tile.closeMenu}
         actions={tile.actions}
         triggerPoint={tile.anchor}
+        separators="explicit"
       />
 
       <UrlInputModal

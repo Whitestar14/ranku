@@ -1,8 +1,7 @@
 import React from "react";
 import { cn } from "@/utils";
 
-export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   icon?: React.ReactNode;
   trailing?: React.ReactNode;
 }
@@ -25,8 +24,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           "focus:bg-surface-elevated focus:border-border",
           "disabled:cursor-not-allowed disabled:opacity-50",
           icon && "pl-9",
-          trailing && "pr-[5.5rem]",
-          className
+          trailing && "pr-22",
+          className,
         )}
         {...props}
       />
@@ -36,6 +35,6 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         </div>
       )}
     </div>
-  )
+  ),
 );
 Input.displayName = "Input";

@@ -23,6 +23,8 @@ export const ExportModalHost: React.FC<{
   const isOpen = useModalState((s) => s.isExportOpen);
   const close = useModalState((s) => s.closeExport);
   const trimPadding = useStore((s) => s.preferences.exportTrimmed ?? true);
+  const format = useStore((s) => s.preferences.exportFormat ?? "png");
+  const quality = useStore((s) => s.preferences.exportQuality ?? 2);
   const updatePreferences = useStore((s) => s.updatePreferences);
   return (
     <ExportModal
@@ -32,6 +34,10 @@ export const ExportModalHost: React.FC<{
       onCopyImage={onCopyImage}
       trimPadding={trimPadding}
       onTrimPaddingChange={(trim) => updatePreferences({ exportTrimmed: trim })}
+      format={format}
+      quality={quality}
+      onFormatChange={(value) => updatePreferences({ exportFormat: value })}
+      onQualityChange={(value) => updatePreferences({ exportQuality: value })}
     />
   );
 };
@@ -44,6 +50,7 @@ export const ConfirmModalHost: React.FC = () => {
       isOpen={confirm.isOpen}
       title={confirm.title}
       message={confirm.message}
+      toggle={confirm.toggle}
       onConfirm={confirm.onConfirm}
       onCancel={close}
     />

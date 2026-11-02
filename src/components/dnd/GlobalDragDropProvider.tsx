@@ -1,4 +1,5 @@
-import React, { ReactNode, useCallback } from "react";
+import React, { ReactNode, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   DndContext,
   MouseSensor,
@@ -7,9 +8,9 @@ import {
   useSensors,
   DragStartEvent,
   DragEndEvent,
-  DragOverlay,
   pointerWithin,
   useDndContext,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import { useStore } from "@/store/useStore";
 import { useDragState, DragKind } from "@/state/dragState";
@@ -87,7 +88,12 @@ const CustomDragOverlay = () => {
             borderRadius: "var(--radius-mini)",
           }}
         >
-          <RemoteImage src={data.imageSrc} alt="" className="w-full h-full" />
+          <RemoteImage
+            src={data.imageSrc}
+            alt=""
+            noPlaceholder
+            className="w-full h-full"
+          />
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-headline font-semibold text-text truncate">
@@ -118,7 +124,12 @@ const CustomDragOverlay = () => {
           boxShadow: "var(--material-shadow-high)",
         }}
       >
-        <RemoteImage src={data.imageSrc} alt="" className="w-full h-full" />
+        <RemoteImage
+          src={data.imageSrc}
+          alt=""
+          noPlaceholder
+          className="w-full h-full"
+        />
       </div>
     );
   }
@@ -136,8 +147,67 @@ const CustomDragOverlay = () => {
         boxShadow: "var(--material-shadow-high)",
       }}
     >
-      <RemoteImage src={data.imageSrc} alt="" className="w-full h-full" />
+      <RemoteImage
+        src={data.imageSrc}
+        alt=""
+        noPlaceholder
+        className="w-full h-full"
+      />
     </div>
+  );
+};
+
+const pointerOf = (event: Event | null): { x: number; y: number } | null => {
+  if (!event) return null;
+  if ("touches" in event) {
+    const touch = (event as TouchEvent).touches[0];
+    return touch ? { x: touch.clientX, y: touch.clientY } : null;
+  }
+  const pointer = event as PointerEvent;
+  return typeof pointer.clientX === "number"
+    ? { x: pointer.clientX, y: pointer.clientY }
+    : null;
+};
+
+/**
+ * The preview is positioned from the pointer directly, not from the source
+ * node's rect, so it always sits centred under the hand regardless of where the
+ * tile was grabbed.
+ */
+const DragPreview: React.FC = () => {
+  const { active, activatorEvent } = useDndContext();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    const node = ref.current;
+    if (!node) return;
+
+    const place = (x: number, y: number) => {
+      node.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      node.style.opacity = "1";
+    };
+    const start = pointerOf(activatorEvent as Event | null);
+    if (start) place(start.x, start.y);
+
+    const onMove = (event: PointerEvent) => place(event.clientX, event.clientY);
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onMove);
+  }, [active, activatorEvent]);
+
+  if (!active?.data.current) return null;
+
+  return createPortal(
+    <div
+      ref={ref}
+      aria-hidden
+      className="pointer-events-none fixed left-0 top-0 z-[9999] opacity-0 will-change-transform"
+    >
+      <div className="-translate-x-1/2 -translate-y-1/2">
+        <CustomDragOverlay />
+      </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -304,6 +374,17 @@ const findDropHandler = (from?: string, to?: string): DropHandler | null =>
     ? (DROP_HANDLERS.find((h) => h.from === from && h.to === to) ?? null)
     : null;
 
+/** The dock is the topmost surface: while it is under the pointer, nothing
+ *  behind it may answer a drop. */
+const dockFirstCollision: CollisionDetection = (args) => {
+  const collisions = pointerWithin(args);
+  const dock = collisions.find(
+    (collision) =>
+      collision.data?.droppableContainer.data.current?.type === DROP_TYPE.DOCK,
+  );
+  return dock ? [dock] : collisions;
+};
+
 /* ─── Provider ─────────────────────────────────────────────────────── */
 export const GlobalDragDropProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -391,25 +472,13 @@ export const GlobalDragDropProvider: React.FC<{ children: ReactNode }> = ({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={pointerWithin}
+      collisionDetection={dockFirstCollision}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
       {children}
-      {/* Centred in the dragged node's rect so the card sits under the hand. */}
-      <DragOverlay
-        dropAnimation={null}
-        style={{
-          zIndex: 9999,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          willChange: "transform",
-        }}
-      >
-        <CustomDragOverlay />
-      </DragOverlay>
+      <DragPreview />
     </DndContext>
   );
 };

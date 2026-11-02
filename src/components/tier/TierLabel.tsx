@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { fitTierLabel, TIER_LABEL_LINE_HEIGHT } from "@/utils/tierLabel";
+import { observeResize } from "@/utils/resizeObserver";
 
 export const TierLabel: React.FC<{
   label: string;
@@ -22,10 +23,9 @@ export const TierLabel: React.FC<{
     };
 
     read();
-    const observer = new ResizeObserver(read);
-    observer.observe(el);
+    const unobserve = observeResize(el, read);
     document.fonts?.ready.then(read).catch(() => {});
-    return () => observer.disconnect();
+    return unobserve;
   }, []);
 
   const fit = useMemo(

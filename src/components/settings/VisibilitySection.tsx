@@ -26,10 +26,6 @@ export const VisibilitySection: React.FC<VisibilitySectionProps> = ({
     <div className="flex flex-col gap-2.5">
       <SectionHeader>Visibility</SectionHeader>
 
-      {/* Rows rather than fields: every control here is a switch behind an icon
-          chip, which is the idiom the rest of the app already uses for toggles.
-          The header and the surface are shared with the other two sections, so
-          the rail still reads as one object. */}
       <SettingButtonGroup
         className="mx-4 rounded-card overflow-hidden"
         style={settingsCardStyle}
@@ -37,50 +33,54 @@ export const VisibilitySection: React.FC<VisibilitySectionProps> = ({
         {(projectType === "ranking" || projectType === "list") && (
           <SettingRow
             asLabel
-            icon={<Hash size={15} />}
+            icon={<Hash size={16} />}
             iconBg="bg-primary/15 text-primary"
             label="Show Numbers"
             right={
               <Toggle
                 checked={showNumbers}
                 onCheckedChange={() => onVisualToggle("showNumbers")}
+                aria-label="Show Numbers"
               />
             }
           />
         )}
         <SettingRow
           asLabel
-          icon={<Type size={15} />}
+          icon={<Type size={16} />}
           iconBg="bg-accent-green/15 text-accent-green"
           label="Show Title"
           right={
             <Toggle
               checked={showTitle}
               onCheckedChange={() => onVisualToggle("showTitle")}
+              aria-label="Show Title"
             />
           }
         />
         <SettingRow
           asLabel
-          icon={<Calendar size={15} />}
+          icon={<Calendar size={16} />}
           iconBg="bg-accent-orange/15 text-accent-orange"
           label="Show Date"
           right={
             <Toggle
               checked={showDate}
               onCheckedChange={() => onVisualToggle("showDate")}
+              aria-label="Show Date"
             />
           }
         />
         <SettingRow
           asLabel
-          icon={<Droplets size={15} />}
+          icon={<Droplets size={16} />}
           iconBg="bg-accent-purple/15 text-accent-purple"
           label="Show Watermark"
           right={
             <Toggle
               checked={showWatermark}
               onCheckedChange={() => onVisualToggle("showWatermark")}
+              aria-label="Show Watermark"
             />
           }
         />

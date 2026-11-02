@@ -28,7 +28,7 @@ export const SettingRow: React.FC<{
   label: React.ReactNode;
   sublabel?: React.ReactNode;
   iconBg?: string;
-  onClick?: (e: React.MouseEvent) => void;
+  onClick?: (e: React.MouseEvent | React.KeyboardEvent) => void;
   right?: React.ReactNode;
   destructive?: boolean;
   className?: string;
@@ -48,19 +48,39 @@ export const SettingRow: React.FC<{
   className = "",
   asLabel,
   as,
+  href,
+  target,
+  rel,
   ...rest
 }) => {
   const Component = as || (asLabel ? "label" : onClick ? "button" : "div");
   const isBtn = Component === "button";
-  const isClickable = !!onClick || asLabel || Component === "a";
+  const isAnchor = Component === "a";
+  const hasHref = isAnchor && typeof href === "string" && href.length > 0;
+
+  const syntheticButton = !isBtn && !hasHref && !!onClick;
+  const isClickable = !!onClick || asLabel || isAnchor;
 
   return (
     <Component
       type={isBtn ? "button" : undefined}
       onClick={onClick}
-      role={!isBtn && (onClick || Component === "a") ? "button" : undefined}
-      tabIndex={!isBtn && (onClick || Component === "a") ? 0 : undefined}
-      className={`relative flex items-center gap-3.5 px-4 py-2 min-h-14 w-full text-left transition-colors ${
+      role={syntheticButton ? "button" : undefined}
+      tabIndex={syntheticButton ? 0 : undefined}
+      onKeyDown={
+        syntheticButton
+          ? (e: React.KeyboardEvent) => {
+              // If a focusable child (e.g. the Toggle) owns the key, let it.
+              if (e.target !== e.currentTarget) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick?.(e);
+              }
+            }
+          : undefined
+      }
+      {...(isAnchor ? { href, target, rel } : {})}
+      className={`relative flex items-center gap-3.5 px-4 py-2 min-h-[3rem] w-full text-left transition-colors ${
         isClickable
           ? "hover:bg-hover active:bg-black/5 dark:active:bg-white/5 cursor-pointer"
           : ""
@@ -76,13 +96,17 @@ export const SettingRow: React.FC<{
       )}
       <div className="flex-1 min-w-0 pr-2">
         <div
-          className={`text-subheadline font-medium truncate ${destructive ? "text-red-500" : ""}`}
+          className={`text-subheadline font-medium truncate ${
+            destructive ? "text-red-500" : ""
+          }`}
         >
           {label}
         </div>
         {sublabel && (
           <div
-            className={`text-footnote leading-snug mt-0.5 hidden sm:block ${destructive ? "text-red-500/60" : "text-muted"}`}
+            className={`text-footnote leading-snug mt-0.5 line-clamp-2 ${
+              destructive ? "text-red-500/60" : "text-muted"
+            }`}
           >
             {sublabel}
           </div>

@@ -6,7 +6,6 @@ interface ProviderConfig {
   minIntervalMs: number;
   /** How long to stop calling it after a failure. */
   cooldownMs: number;
-  maxRetries: number;
 }
 
 interface ProviderRuntime {
@@ -18,20 +17,15 @@ interface ProviderRuntime {
 }
 
 export const PROVIDER_CONFIG: Record<MetadataSource, ProviderConfig> = {
-  // 350ms ≈ 2.8 req/s — just under Jikan's 3/s ceiling.
-  jikan: { id: "jikan", minIntervalMs: 350, cooldownMs: 15_000, maxRetries: 1 },
-  // 2000ms = 30 req/min, which stays inside AniList's *degraded* budget so we
-  // never contribute to the pressure that got it degraded in the first place.
-  anilist: {
-    id: "anilist",
-    minIntervalMs: 2000,
-    cooldownMs: 30_000,
-    maxRetries: 1,
-  },
+  // 300ms fits Tenrai's 4 requests per second ceiling with a little room.
+  tenrai: { id: "tenrai", minIntervalMs: 300, cooldownMs: 15_000 },
+  anilist: { id: "anilist", minIntervalMs: 1200, cooldownMs: 30_000 },
 };
 
+const abortError = () => new DOMException("Aborted", "AbortError");
+
 const runtime: Record<MetadataSource, ProviderRuntime> = {
-  jikan: {
+  tenrai: {
     chain: Promise.resolve(),
     lastStartedAt: 0,
     cooldownUntil: 0,
@@ -49,19 +43,23 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Runs `task` with the provider's rate discipline applied. Everything is
- * chained onto a single promise so two callers can never overlap, and the queue
- * waits out the minimum interval before starting.
+ * chained onto a single promise so two callers can never overlap. A request
+ * that is cancelled while queued leaves without spending the interval, so a
+ * superseded keystroke never delays the query the user is actually waiting on.
  */
 export function schedule<T>(
   source: MetadataSource,
-  task: () => Promise<T>
+  task: () => Promise<T>,
+  signal?: AbortSignal,
 ): Promise<T> {
   const cfg = PROVIDER_CONFIG[source];
   const rt = runtime[source];
 
   const run = async (): Promise<T> => {
+    if (signal?.aborted) throw abortError();
     const wait = rt.lastStartedAt + cfg.minIntervalMs - Date.now();
     if (wait > 0) await sleep(wait);
+    if (signal?.aborted) throw abortError();
     rt.lastStartedAt = Date.now();
     return task();
   };

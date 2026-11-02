@@ -26,7 +26,9 @@ export const BottomDockLayout: React.FC<{
     (s) => s.preferences.autoCloseDockOnDragDesktop ?? false
   );
 
+  const { setDockSurface, setActiveTab, setIsExpanded } = ctrl;
   const [autoFocusSearch, setAutoFocusSearch] = React.useState(false);
+  const [hasOpened, setHasOpened] = React.useState(false);
   const isExternalDrag = useExternalDragZone();
 
   const { isDockHot, isDndOver, setDockRefs } = useDockDropZone({
@@ -36,25 +38,36 @@ export const BottomDockLayout: React.FC<{
     autoCloseOnDragDesktop: autoCloseDockDesktop,
   });
 
+  const focusResetTimer = React.useRef<number | undefined>(undefined);
+
   React.useEffect(() => {
     const handleOpenSearch = () => {
-      ctrl.setDockSurface("library");
-      ctrl.setActiveTab("search");
-      ctrl.setIsExpanded(true);
+      setDockSurface("library");
+      setActiveTab("search");
+      setIsExpanded(true);
       setAutoFocusSearch(true);
-      // Brief timeout to let focus happen, then reset so it can be re-triggered
-      setTimeout(() => setAutoFocusSearch(false), 500);
+      // Brief timeout to let focus happen, then reset so it can be re-triggered.
+      window.clearTimeout(focusResetTimer.current);
+      focusResetTimer.current = window.setTimeout(
+        () => setAutoFocusSearch(false),
+        500,
+      );
     };
     window.addEventListener("open-inbox-search", handleOpenSearch);
-    return () =>
+    return () => {
       window.removeEventListener("open-inbox-search", handleOpenSearch);
-  }, [ctrl.setDockSurface, ctrl.setActiveTab, ctrl.setIsExpanded]);
+      window.clearTimeout(focusResetTimer.current);
+    };
+  }, [setDockSurface, setActiveTab, setIsExpanded]);
 
   const open = ctrl.isExpanded;
+  React.useEffect(() => {
+    if (open) setHasOpened(true);
+  }, [open]);
+
   const isDropActive = ctrl.isDragOver || isDndOver;
-  /* The panel stays mounted after it collapses so the drag keeps its source
-     node, but nothing of it may be visible: clipped by the 3rem bar it used to
-     leak a strip of thumbnails under the collapsed chrome. */
+  /* The panel stays mounted after it collapses so a drag keeps its source
+     node, but none of it may show through the collapsed bar. */
   const isDraggingItem = !open && ctrl.isDraggingFromDock;
 
   return (
@@ -87,7 +100,7 @@ export const BottomDockLayout: React.FC<{
       <div
         ref={setDockRefs}
         className={`
-          relative overflow-hidden flex flex-col squircle overscroll-contain
+          dock-surface relative overflow-hidden flex flex-col squircle overscroll-contain
           ${open ? "material-thick" : "material-thin material-lit"}
           ${isDropActive ? "dock-drop-active" : isDockHot ? "dock-drop-hot" : ""}
         `}
@@ -100,7 +113,6 @@ export const BottomDockLayout: React.FC<{
           transition: open
             ? "width 210ms var(--ease-emphasized), height 260ms var(--ease-emphasized) 120ms"
             : "width 240ms var(--ease-emphasized) 90ms, height 190ms var(--ease-emphasized)",
-          willChange: "width, height",
         }}
         onDragEnter={ctrl.handleDragEnter}
         onDragOver={ctrl.handleDragOver}
@@ -122,15 +134,13 @@ export const BottomDockLayout: React.FC<{
           }}
         />
 
-        {/* Mounted while the panel is open, and while an item is being dragged
-            *out* of it. Auto-close collapses the panel the moment the pointer
-            leaves, and this subtree owns the card that is in flight — so
-            unmounting on collapse used to drop the drag's identity and the drop
-            with it, making the image look like it had vanished. */}
-        {(open || ctrl.isDraggingFromDock) && (
+        {/* Mounted while open, and while an item is dragged *out* of it: the
+            card in flight lives in this subtree, so unmounting ends the drag. */}
+        {(hasOpened || ctrl.isDraggingFromDock) && (
           <div
-            className={open ? "contents" : "invisible"}
+            className={open ? "contents" : "hidden"}
             inert={!open || undefined}
+            aria-hidden={!open || undefined}
           >
             <DockExpandedContent
               ctrl={ctrl}

@@ -25,15 +25,15 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => (
 
       <div
         aria-hidden
-        className="absolute inset-x-0 top-0 h-40 pointer-events-none opacity-[0.06]"
+        className="absolute inset-x-0 top-0 h-36 pointer-events-none opacity-[0.05]"
         style={{
           backgroundImage:
             "repeating-conic-gradient(var(--color-text) 0% 25%, transparent 0% 50%)",
           backgroundSize: "6px 6px",
           maskImage:
-            "radial-gradient(ellipse 90% 100% at 50% 0%, #000 0%, #000 40%, transparent 85%)",
+            "radial-gradient(ellipse 80% 100% at 50% 0%, #000 0%, transparent 78%)",
           WebkitMaskImage:
-            "radial-gradient(ellipse 90% 100% at 50% 0%, #000 0%, #000 40%, transparent 85%)",
+            "radial-gradient(ellipse 80% 100% at 50% 0%, #000 0%, transparent 78%)",
         }}
       />
 
@@ -42,7 +42,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => (
           <PixelWordmark height={21} className="text-text" />
         </span>
 
-        <span aria-hidden className="flex items-center gap-1 mt-3.5">
+        <span aria-hidden className="flex items-center gap-1 mt-4">
           {BRAND_PALETTE.map((color, i) => (
             <span
               key={i}
@@ -98,7 +98,7 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => (
         anime posters.
       </p>
 
-      <div className="relative border-t border-(--color-divider)">
+      <div className="relative border-t border-hairline">
         <button
           type="button"
           onClick={onClose}

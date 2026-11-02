@@ -10,6 +10,8 @@ export interface InboxItemCardProps {
   collectionId: string;
   isUsed: boolean;
   isSelected: boolean;
+  /** This card is the image waiting to be tapped onto the board. */
+  isPlacing: boolean;
   isAllView: boolean;
   onItemClick: (e: React.MouseEvent, itemId: string) => void;
   onDeleteItem: (item: InboxItem) => void;
@@ -22,6 +24,7 @@ export const InboxItemCard = React.memo<InboxItemCardProps>(
     collectionId,
     isUsed,
     isSelected,
+    isPlacing,
     isAllView,
     onItemClick,
     onDeleteItem,
@@ -49,14 +52,16 @@ export const InboxItemCard = React.memo<InboxItemCardProps>(
         className={cn(
           "relative group shrink-0 w-28 h-40 rounded-tile overflow-hidden",
           "cursor-grab active:cursor-grabbing transition-transform duration-150 ease-out",
-          isSelected
-            ? "ring-2 ring-primary scale-95 opacity-100"
-            : isDragging
-              ? "ring-2 ring-accent-green opacity-50 scale-95"
-              : isUsed
-                ? "ring-2 ring-transparent opacity-55 hover:opacity-85"
-                : "ring-2 ring-transparent hover:ring-primary/60 hover:scale-105",
-          isDragging && !isSelected && "opacity-50 scale-95",
+          isPlacing
+            ? "ring-2 ring-primary opacity-100"
+            : isSelected
+              ? "ring-2 ring-primary scale-95 opacity-100"
+              : isDragging
+                ? "ring-2 ring-accent-green opacity-50 scale-95"
+                : isUsed
+                  ? "ring-2 ring-transparent opacity-55 hover:opacity-85"
+                  : "ring-2 ring-transparent hover:ring-primary/60 hover:scale-105",
+          isDragging && !isSelected && !isPlacing && "opacity-50 scale-95",
         )}
       >
         <RemoteImage

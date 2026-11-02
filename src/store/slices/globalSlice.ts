@@ -1,10 +1,23 @@
 import { StateCreator } from "zustand";
 import { AppState } from "../useStore";
-import { checkAndRescueImages, resolveActiveRankId } from "@/utils/storeUtils";
-import { GlobalState, InteractionState } from "@/types";
+import {
+  checkAndRescueImages,
+  resolveActiveRankId,
+  targetCollectionId,
+} from "@/utils/storeUtils";
+import { GlobalState, InteractionState, Placement } from "@/types";
 
 export interface GlobalSlice {
+  /** Recently active project ids, oldest first. */
+  rankHistory: string[];
   interactionState: InteractionState;
+  /**
+   * True while an item from the dock is in flight.
+   */
+  isDraggingFromDock: boolean;
+  setIsDraggingFromDock: (value: boolean) => void;
+  placement: Placement | null;
+  setPlacement: (placement: Placement | null) => void;
   duplicateModalConfig: {
     isOpen: boolean;
     imageSrc: string | null;
@@ -29,7 +42,16 @@ export const createGlobalSlice: StateCreator<
   [],
   GlobalSlice
 > = (set, get) => ({
+  rankHistory: [],
   interactionState: null,
+  isDraggingFromDock: false,
+  setIsDraggingFromDock: (value) => set({ isDraggingFromDock: value }),
+  placement: null,
+  setPlacement: (placement) =>
+    set({
+      placement,
+      interactionState: placement ? null : get().interactionState,
+    }),
   duplicateModalConfig: {
     isOpen: false,
     imageSrc: null,
@@ -97,16 +119,12 @@ export const createGlobalSlice: StateCreator<
       const activeRank = state.ranks[state.activeRankId];
       if (!activeRank) return;
 
-      const targetColId =
-        state.inbox.activeCollectionId === "all-images"
-          ? state.inbox.collections[0].id
-          : state.inbox.activeCollectionId;
-
+      const targetColId = targetCollectionId(state.inbox);
       const col = state.inbox.collections.find((c) => c.id === targetColId);
 
       if (activeRank.type === "tierlist") {
         const allItems = activeRank.tierRows.flatMap((r) => r.items);
-        const rescued = checkAndRescueImages(allItems, state, targetColId);
+        const rescued = checkAndRescueImages(allItems, state);
         if (col && rescued.length > 0) {
           col.items.push(...rescued);
         }
@@ -115,11 +133,7 @@ export const createGlobalSlice: StateCreator<
         });
       } else {
         const cellsWithImages = activeRank.cells.filter((c) => c.imageSrc);
-        const rescued = checkAndRescueImages(
-          cellsWithImages,
-          state,
-          targetColId,
-        );
+        const rescued = checkAndRescueImages(cellsWithImages, state);
         if (col && rescued.length > 0) {
           col.items.push(...rescued);
         }
@@ -134,17 +148,40 @@ export const createGlobalSlice: StateCreator<
 
   importState: (newState, mode) =>
     set((state: AppState) => {
+      /* A backup can be hand-edited or come from an older build. Rebuilding the
+         shape here means a missing `inbox` or `preferences` block cannot leave
+         the store in a half-valid state that crashes on the next read. */
+      const ranks = newState.ranks ?? {};
+      const collections = newState.inbox?.collections ?? [];
+      const restoredInbox = {
+        collections,
+        activeCollectionId:
+          newState.inbox?.activeCollectionId ??
+          collections[0]?.id ??
+          "all-images",
+        lastTargetCollectionId: newState.inbox?.lastTargetCollectionId,
+      };
+
       if (mode === "overwrite") {
         return {
           ...newState,
-          activeRankId: resolveActiveRankId(
-            newState.ranks,
-            newState.activeRankId,
-          ),
-        } as AppState;
+          ranks,
+          inbox: restoredInbox,
+          preferences: { ...state.preferences, ...newState.preferences },
+          activeRankId: resolveActiveRankId(ranks, newState.activeRankId),
+          rankHistory: [],
+          interactionState: null,
+          placement: null,
+          isDraggingFromDock: false,
+          duplicateModalConfig: {
+            isOpen: false,
+            imageSrc: null,
+            actionToExecute: null,
+          },
+        } as unknown as AppState;
       }
 
-      Object.entries(newState.ranks).forEach(([id, rank]) => {
+      Object.entries(ranks).forEach(([id, rank]) => {
         let targetId = id;
         if (state.ranks[id]) {
           targetId = `${id}-${Math.random().toString(36).slice(2, 7)}`;
@@ -152,7 +189,7 @@ export const createGlobalSlice: StateCreator<
         state.ranks[targetId] = { ...rank, id: targetId };
       });
 
-      newState.inbox.collections.forEach((newCol) => {
+      collections.forEach((newCol) => {
         const existing = state.inbox.collections.find(
           (c) => c.name.toLowerCase() === newCol.name.toLowerCase(),
         );

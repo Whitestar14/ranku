@@ -12,6 +12,7 @@ import {
   SearchLoadingPane,
 } from "@/components/search/SearchPanes";
 import { useMediaSearch } from "@/hooks/useMediaSearch";
+import { observeResize } from "@/utils/resizeObserver";
 import type { SearchMode, SourcePreference } from "@/core/metadata";
 
 interface SearchPanelProps {
@@ -76,9 +77,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
     if (!el) return;
     const check = () => setOverflowing(el.scrollHeight > el.clientHeight + 8);
     check();
-    const observer = new ResizeObserver(check);
-    observer.observe(el);
-    return () => observer.disconnect();
+    return observeResize(el, check);
   }, [results.length, loading, error]);
 
   const showEmpty = hasSearched && !loading && !error && results.length === 0;
@@ -199,8 +198,9 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
         onClose={() => setIsSourceMenuOpen(false)}
         triggerPoint={sourceAnchor}
         actions={SOURCE_OPTIONS.map((option) => ({
-          label: option.label + (imageSource === option.value ? "  ✓" : ""),
+          label: option.label,
           icon: option.value === "auto" ? SlidersHorizontal : Search,
+          selected: imageSource === option.value,
           onClick: () => onImageSourceChange?.(option.value),
         }))}
       />

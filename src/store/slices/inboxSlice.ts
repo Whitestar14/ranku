@@ -1,15 +1,17 @@
 import { StateCreator } from "zustand";
 import { AppState } from "../useStore";
 import { InboxCollection, InboxItem } from "@/types";
+import { createId, isImageTracked, trackImage } from "@/utils/storeUtils";
 
 export interface InboxSlice {
   updateActiveCollection: (updates: Partial<InboxCollection>) => void;
 
-  handleAddToCollection: (imageSrc: string, collectionId: string) => void;
+  /** False when the image is already tracked in the dock. */
+  handleAddToCollection: (imageSrc: string, collectionId: string) => boolean;
   handleUpdateLastTarget: (colId: string) => void;
-  setIsDraggingFromDock: (v: boolean) => void;
   handleRestoreItem: (item: InboxItem, collectionId: string) => void;
-  handleInboxUpload: (dataUrl: string) => void;
+  /** False when the image is already tracked in the dock. */
+  handleInboxUpload: (dataUrl: string) => boolean;
   switchCollection: (id: string) => void;
   addCollection: () => void;
   deleteCollection: (id: string) => void;
@@ -23,7 +25,7 @@ export const createInboxSlice: StateCreator<
   [["zustand/immer", never]],
   [],
   InboxSlice
-> = (set) => ({
+> = (set, get) => ({
   updateActiveCollection: (updates) =>
     set((state) => {
       const collection = state.inbox.collections.find(
@@ -32,24 +34,25 @@ export const createInboxSlice: StateCreator<
       if (collection) Object.assign(collection, updates);
     }),
 
-  handleAddToCollection: (imageSrc, collectionId) =>
+  handleAddToCollection: (imageSrc, collectionId) => {
+    if (isImageTracked(get().inbox, imageSrc, collectionId)) return false;
+    let added = false;
     set((state) => {
       const col = state.inbox.collections.find((c) => c.id === collectionId);
-      if (col && !col.items.some((i) => i.imageSrc === imageSrc)) {
-        col.items.push({
-          id: `inbox-add-${Date.now()}`,
+      if (col) {
+        col.items.unshift({
+          id: createId("inbox"),
           imageSrc,
           createdAt: Date.now(),
         });
+        added = true;
       }
-    }),
+    });
+    return added;
+  },
   handleUpdateLastTarget: (colId) =>
     set((state) => {
       state.inbox.lastTargetCollectionId = colId;
-    }),
-  setIsDraggingFromDock: (v) =>
-    set((state) => {
-      state.inbox.isDraggingFromDock = v;
     }),
   handleRestoreItem: (item, collectionId) =>
     set((state) => {
@@ -58,28 +61,20 @@ export const createInboxSlice: StateCreator<
         col.items.push(item);
       }
     }),
-  handleInboxUpload: (dataUrl) =>
+  handleInboxUpload: (dataUrl) => {
+    if (isImageTracked(get().inbox, dataUrl)) return false;
     set((state) => {
-      const targetColId =
-        state.inbox.activeCollectionId === "all-images"
-          ? state.inbox.collections[0].id
-          : state.inbox.activeCollectionId;
-      const col = state.inbox.collections.find((c) => c.id === targetColId);
-      if (col) {
-        col.items.unshift({
-          id: `inbox-upload-${Date.now()}`,
-          imageSrc: dataUrl,
-          createdAt: Date.now(),
-        });
-      }
-    }),
+      trackImage(state.inbox, dataUrl);
+    });
+    return true;
+  },
   switchCollection: (id) =>
     set((state) => {
       state.inbox.activeCollectionId = id;
     }),
   addCollection: () =>
     set((state) => {
-      const newId = `col-${Date.now()}`;
+      const newId = createId("col");
       state.inbox.collections.push({
         id: newId,
         name: "New Collection",

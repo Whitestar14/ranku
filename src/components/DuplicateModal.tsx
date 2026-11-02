@@ -48,7 +48,11 @@ export const DuplicateModal: React.FC<DuplicateModalProps> = ({
                    text-footnote text-text select-none"
       >
         <span>Don't ask again</span>
-        <Toggle checked={dontAsk} onCheckedChange={setDontAsk} />
+        <Toggle
+          aria-label="Don't ask again"
+          checked={dontAsk}
+          onCheckedChange={setDontAsk}
+        />
       </button>
     </Modal>
   );

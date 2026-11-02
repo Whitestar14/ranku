@@ -8,11 +8,13 @@ import { DEFAULT_ASPECT, aspectToCss } from "@/utils/ui";
 import { UrlInputModal } from "@/components/ui/UrlInputModal";
 import { RemoteImage } from "@/components/ui/RemoteImage";
 import { PopoverMenu } from "@/components/ui/PopoverMenu";
-import { AdjustOverlay } from "@/components/ui/AdjustOverlay";
+import { AdjustControls, AdjustOverlay } from "@/components/ui/AdjustOverlay";
 import { TileEmptyState } from "./tile/TileEmptyState";
 import { getContrastColor } from "@/theme/palettes";
 import { useTile } from "./tile/useTile";
 import {
+  dropTint,
+  resolveBoardBackground,
   restingTileShadow,
   selectActiveBoard,
   tileStateShadow,
@@ -37,12 +39,17 @@ export const Cell = React.memo(function Cell({
   const cell = useStore((s) => s.ranks[s.activeRankId]?.cells[index]);
   const board = useStore(useShallow(selectActiveBoard));
   const title = useStore((s) => s.ranks[s.activeRankId]?.title ?? "");
+  const isDark = useStore((s) => s.theme?.isDark);
   const sheetTextColor = getContrastColor(
-    useStore((s) => s.ranks[s.activeRankId]?.backgroundColor ?? "transparent"),
+    resolveBoardBackground(
+      useStore(
+        (s) => s.ranks[s.activeRankId]?.backgroundColor ?? "transparent",
+      ),
+      { isDark },
+    ),
   );
   const isPlacing = useStore((s) => s.placement !== null);
 
-  const handleCellClear = useStore((s) => s.handleCellClear);
   const handleUpdateCell = useStore((s) => s.handleUpdateCell);
   const handleItemTransfer = useStore((s) => s.handleItemTransfer);
 
@@ -57,7 +64,6 @@ export const Cell = React.memo(function Cell({
         { type: "search", imageSrc: url },
         { type: "cell", index },
       ),
-    clear: () => handleCellClear(index),
     returnToLibrary: () =>
       handleItemTransfer({ type: "cell", index }, { type: "inbox" }),
     filename: `${title.replace(/\s+/g, "-").toLowerCase() || "image"}-${
@@ -111,8 +117,9 @@ export const Cell = React.memo(function Cell({
       aria-colindex={(index % cols) + 1}
       aria-selected={tile.isSelected}
       /* dnd-kit marks a non-draggable cell aria-disabled, but an empty cell is
-         still selectable, so it must stay enabled to assistive tech. */
-      aria-disabled={tile.isAdjusting || undefined}
+         still selectable and adjust mode puts cancel/save inside it, so the
+         cell itself must stay enabled to assistive tech. */
+      aria-disabled={false}
       aria-label={
         tile.hasImage
           ? `Position ${index + 1}, filled`
@@ -121,7 +128,7 @@ export const Cell = React.memo(function Cell({
       data-cell-index={index}
       className={`tile item-enter group/tile relative select-none outline-none [container-type:inline-size] ${
         tile.hasImage ? "touch-none" : ""
-      } ${isDragging ? "z-30 opacity-25" : "z-0"}`}
+      } ${isDragging ? "z-30 opacity-25" : tile.isAdjusting ? "z-30" : "z-0"}`}
       style={
         {
           aspectRatio: aspectToCss(board.aspectRatio),
@@ -137,15 +144,11 @@ export const Cell = React.memo(function Cell({
       onDrop={tile.handleFileDrop}
     >
       <div
-        className={`relative w-full h-full overflow-hidden squircle ${
-          tile.isOver ? "drop-target scale-[1.03]" : ""
-        } transition-transform duration-150 ease-spring`}
+        className="relative w-full h-full overflow-hidden squircle"
         style={{
           borderRadius: board.radius,
           boxShadow: tileStateShadow({
             isSelected: tile.isSelected,
-            isOver: tile.isOver,
-            isFileDragOver: tile.isFileDragOver,
             resting,
           }),
         }}
@@ -157,6 +160,7 @@ export const Cell = React.memo(function Cell({
               alt=""
               decoding="async"
               loading="lazy"
+              colorPlaceholder
               className="absolute inset-0 w-full h-full object-cover pointer-events-none"
               style={tile.imageStyle}
             />
@@ -177,7 +181,7 @@ export const Cell = React.memo(function Cell({
           </span>
         )}
 
-        {tile.hasImage && (
+        {tile.hasImage && !tile.isAdjusting && (
           <button
             type="button"
             data-export-hide=""
@@ -200,21 +204,14 @@ export const Cell = React.memo(function Cell({
             onPointerMove={tile.adjust.handlePointerMove}
             onPointerUp={tile.adjust.handlePointerUp}
             onPointerCancel={tile.adjust.handlePointerCancel}
-            onCancel={tile.adjust.stop}
-            onSave={() => {
-              tile.adjust.save();
-              tile.clearInteraction();
-            }}
           />
         )}
 
-        {!tile.hasImage && (tile.isOver || tile.isFileDragOver) && (
+        {(tile.isOver || tile.isFileDragOver) && (
           <div
-            className="absolute inset-0 z-20 pointer-events-none"
-            style={{
-              background:
-                "color-mix(in srgb, var(--color-primary) 14%, transparent)",
-            }}
+            aria-hidden
+            className="absolute inset-0 z-20 pointer-events-none transition-opacity duration-150"
+            style={{ background: dropTint() }}
           />
         )}
 
@@ -230,6 +227,17 @@ export const Cell = React.memo(function Cell({
         )}
       </div>
 
+      {tile.isAdjusting && (
+        <AdjustControls
+          className="absolute left-1/2 -top-4 z-40 -translate-x-1/2"
+          onCancel={tile.adjust.stop}
+          onSave={() => {
+            tile.adjust.save();
+            tile.clearInteraction();
+          }}
+        />
+      )}
+
       <input
         ref={tile.fileInputRef}
         type="file"
@@ -243,6 +251,7 @@ export const Cell = React.memo(function Cell({
         onClose={tile.closeMenu}
         actions={tile.actions}
         triggerPoint={tile.anchor}
+        separators="explicit"
       />
 
       <UrlInputModal

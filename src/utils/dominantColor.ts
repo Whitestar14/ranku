@@ -1,14 +1,10 @@
 import { FALLBACK_TIER_COLOR } from "@/constants/tierColors";
+import { boundCache } from "./lru";
+import { imageKey } from "./imageKey";
 
-/**
- * A cheap dominant colour for an image, used as the tile's placeholder.
- */
-
-/** src → colour, for the life of the session. */
+const CACHE_LIMIT = 300;
 const cache = new Map<string, string>();
-/** Sources already being sampled, so N tiles sharing an image sample it once. */
 const inFlight = new Set<string>();
-/** Callers waiting on a particular source, so a late sample can be delivered. */
 const listeners = new Map<string, Set<(color: string) => void>>();
 
 const SAMPLE_SIZE = 8;
@@ -17,16 +13,22 @@ const SAMPLE_SIZE = 8;
  * Samples the image down to an 8×8 grid and returns the most saturated
  * frequent bucket
  */
-function sample(src: string): string | null {
+function sample(src: string, key: string): string | null {
   const img = new Image();
   img.crossOrigin = "anonymous";
   img.decoding = "async";
 
   const done = (value: string | null) => {
-    inFlight.delete(src);
+    // Drop the decoded bitmap as soon as the sample is taken; a board full of
+    // image loads would otherwise hold a second full-size decode per tile.
+    img.onload = null;
+    img.onerror = null;
+    img.src = "";
+    inFlight.delete(key);
     if (!value) return;
-    cache.set(src, value);
-    listeners.get(src)?.forEach((fn) => fn(value));
+    cache.set(key, value);
+    boundCache(cache, CACHE_LIMIT);
+    listeners.get(key)?.forEach((fn) => fn(value));
   };
 
   img.onload = () => {
@@ -102,11 +104,12 @@ function sample(src: string): string | null {
  */
 export function dominantColor(src: string): string | undefined {
   if (!src) return undefined;
-  const hit = cache.get(src);
+  const key = imageKey(src);
+  const hit = cache.get(key);
   if (hit) return hit;
-  if (!inFlight.has(src)) {
-    inFlight.add(src);
-    sample(src);
+  if (!inFlight.has(key)) {
+    inFlight.add(key);
+    sample(src, key);
   }
   return undefined;
 }
@@ -119,22 +122,22 @@ export function subscribeDominantColor(
   src: string,
   onColor: (color: string) => void,
 ): () => void {
-  const existing = cache.get(src);
+  const key = imageKey(src);
+  const existing = cache.get(key);
   if (existing) {
     onColor(existing);
     return () => {};
   }
-  let set = listeners.get(src);
+  let set = listeners.get(key);
   if (!set) {
     set = new Set();
-    listeners.set(src, set);
+    listeners.set(key, set);
   }
   set.add(onColor);
-  // The sample may not have started yet if nothing rendered this source.
   dominantColor(src);
   return () => {
     set!.delete(onColor);
-    if (set!.size === 0) listeners.delete(src);
+    if (set!.size === 0) listeners.delete(key);
   };
 }
 

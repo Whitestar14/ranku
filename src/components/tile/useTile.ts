@@ -11,56 +11,39 @@ import {
   filledImageActions,
 } from "@/components/ui/imageActions";
 import { copyImageToClipboard, downloadImage } from "@/utils/imageProxy";
+import { readFileAsDataURL } from "@/utils/imageUtils";
 import { useToast } from "@/context/ToastContext";
 import { DRAG_TYPE, DROP_TYPE } from "@/constants/drag";
 
-/**
- * How one surface (a board tile, a list row, a tier item) routes a change.
- */
+/** How a board tile, list row, or tier item routes a change. */
 export interface TileAdapter {
-  /** Position on a grid/list, or the item's index inside its tier row. */
   index: number;
   item: CellData | undefined;
-  /** Aspect ratio in `w:h` form, for the drag preview. */
   aspectRatio: string;
-  /** Fallback preview width when the element has not been measured yet. */
   previewWidth?: number;
-  /** Set on a tier item so it drags as a tier payload. */
   rowId?: string;
-  /** Marks a list row, whose drop reorders instead of swapping. */
   isRow?: boolean;
-  /** A list can reorder its blank rows; a board tile cannot drag empty. */
   draggableWhenEmpty?: boolean;
-  /**
-   * The id to key the landing pulse on, when it differs from the droppable id.
-   * A sortable list row's droppable id is the cell's own id, because that is
-   * what `useSortable` registers and what a drop reports as `over.id`.
-   */
   dropId?: string;
-  /**
-   * Set on a sortable surface, which registers its own droppable (with its own
-   * id and payload). Registering a second one on the same node would let
-   * collision detection pick a payload with no `type`, and the drop would be
-   * silently ignored.
-   */
   ownDroppable?: boolean;
-  /** Persist a partial change to this position. */
   update: (patch: Partial<CellData>) => void;
-  /** Put an image at this position, from a file or a direct upload. */
   setImage: (src: string) => void;
-  /**
-   * Put an image here from a pasted URL. A grid routes this through the library
-   * so the image is remembered; the other two types just set it. Falls back to
-   * `setImage` when omitted.
-   */
   importFromUrl?: (url: string) => void;
-  /** Empty the position. */
-  clear: () => void;
-  /** Send the image back to the Library. */
   returnToLibrary: () => void;
-  /** Suggested filename for downloading this position's image. */
   filename: string;
 }
+
+const ADJUST_HINT_KEY = "ranku:adjust-hint-shown";
+
+const markAdjustHintSeen = (): boolean => {
+  try {
+    if (sessionStorage.getItem(ADJUST_HINT_KEY)) return false;
+    sessionStorage.setItem(ADJUST_HINT_KEY, "1");
+  } catch {
+    // Private mode can refuse storage; showing the hint again is harmless.
+  }
+  return true;
+};
 
 const parsePlacement = (item: CellData | undefined) => ({
   zoom: item?.zoom,
@@ -68,19 +51,7 @@ const parsePlacement = (item: CellData | undefined) => ({
   posY: item?.objectPosition ? parseInt(item.objectPosition.split(" ")[1]) : 50,
 });
 
-/**
- * Everything a position holding an image must be able to do.
- *
- * It supplies only its layout, its write routing, and the drag mechanism
- * it needs. Placement parsing, the action menu, the file input, the drop pulse
- * and the drag payload are shared, so a behavior fixed here is fixed on all
- * three surfaces by construction.
- *
- * A board tile wants `useDraggable` while a list row needs `useSortable` for its
- * live reorder preview, and one node cannot be registered twice, therefore drag
- * registration is deliberately left to the surface. The hook hands out
- * `dragId` / `dragData` / `dragDisabled` so the payload is still built once.
- */
+/** Shared behavior for every position that can hold an image. */
 export function useTile(adapter: TileAdapter) {
   const {
     index,
@@ -94,7 +65,6 @@ export function useTile(adapter: TileAdapter) {
     update,
     setImage,
     importFromUrl,
-    clear,
     returnToLibrary,
     filename,
   } = adapter;
@@ -117,7 +87,7 @@ export function useTile(adapter: TileAdapter) {
 
   const { fileInputRef, triggerPicker, handleFileChange } = useCellMediaUpload(
     (src) => {
-      setImage(src as string);
+      setImage(src);
       clearInteraction();
     },
   );
@@ -132,12 +102,23 @@ export function useTile(adapter: TileAdapter) {
     startAdjusting,
     stopAdjusting,
     saveAdjustments,
-  } = usePanZoom(parsePlacement(item), imageRef, (state) =>
-    update({
-      zoom: state.zoom,
-      objectPosition: `${state.posX}% ${state.posY}%`,
-    }),
+  } = usePanZoom(
+    parsePlacement(item),
+    imageRef,
+    (state) =>
+      update({
+        zoom: state.zoom,
+        objectPosition: `${state.posX}% ${state.posY}%`,
+      }),
+    tileRef,
   );
+
+  const beginAdjust = useCallback(() => {
+    if (markAdjustHintSeen()) {
+      addToast("info", "Drag to reposition and scroll to zoom");
+    }
+    startAdjusting();
+  }, [addToast, startAdjusting]);
 
   const hasImage = !!item?.imageSrc;
   const dropId =
@@ -201,7 +182,6 @@ export function useTile(adapter: TileAdapter) {
 
   const dragDisabled = isAdjusting || (!hasImage && !draggableWhenEmpty);
 
-  /* Dismiss the menu when the position loses selection. */
   const wasSelected = useRef(isSelected);
   useEffect(() => {
     const previously = wasSelected.current;
@@ -209,10 +189,30 @@ export function useTile(adapter: TileAdapter) {
     if (previously && !isSelected) setIsMenuOpen(false);
   }, [isSelected]);
 
+  /* A long press is how a drag begins on touch. dnd-kit consumes the pointer,
+     but the browser still fires `contextmenu` when the finger lingers, so the
+     last pointer type decides whether that event means anything. */
+  const lastPointerType = useRef("mouse");
+  useEffect(() => {
+    const node = tileRef.current;
+    if (!node) return;
+    const track = (e: PointerEvent) => {
+      lastPointerType.current = e.pointerType || "mouse";
+    };
+    node.addEventListener("pointerdown", track, { capture: true, passive: true });
+    return () => node.removeEventListener("pointerdown", track, { capture: true });
+  }, []);
+
   const openMenu = useCallback(
     (e: React.MouseEvent, anchorTo?: HTMLElement | null) => {
       e.stopPropagation();
+      if (e.type === "contextmenu") {
+        e.preventDefault();
+        if (e.button !== 2 || lastPointerType.current === "touch") return;
+      }
       e.preventDefault();
+      // Adjust mode owns the surface; the menu is deliberately unavailable.
+      if (isAdjusting) return;
       if (anchorTo) {
         const rect = anchorTo.getBoundingClientRect();
         setAnchor({ x: rect.left + rect.width / 2, y: rect.bottom + 4 });
@@ -225,7 +225,7 @@ export function useTile(adapter: TileAdapter) {
       }
       setIsMenuOpen(true);
     },
-    [],
+    [isAdjusting],
   );
 
   const closeMenu = useCallback(() => setIsMenuOpen(false), []);
@@ -269,13 +269,11 @@ export function useTile(adapter: TileAdapter) {
       setIsFileDragOver(false);
       const file = e.dataTransfer.files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) setImage(ev.target.result as string);
-      };
-      reader.readAsDataURL(file);
+      void readFileAsDataURL(file)
+        .then(setImage)
+        .catch(() => addToast("error", "Could not read that image"));
     },
-    [setImage],
+    [setImage, addToast],
   );
 
   const handleFileDragOver = useCallback((e: React.DragEvent) => {
@@ -285,21 +283,14 @@ export function useTile(adapter: TileAdapter) {
 
   const handleFileDragLeave = useCallback(() => setIsFileDragOver(false), []);
 
-  const removeImage = useCallback(() => {
-    clear();
-    clearInteraction();
-  }, [clear, clearInteraction]);
-
   const actions = useMemo<PopoverAction[]>(
     () =>
       hasImage
         ? filledImageActions({
-            onReplace: triggerPicker,
-            onAdjust: startAdjusting,
+            onAdjust: beginAdjust,
             onDownload: handleDownload,
             onCopy: handleCopy,
             onReturnToLibrary: returnToLibrary,
-            onRemove: removeImage,
           })
         : emptyImageActions({
             onChooseFile: triggerPicker,
@@ -310,11 +301,10 @@ export function useTile(adapter: TileAdapter) {
     [
       hasImage,
       triggerPicker,
-      startAdjusting,
+      beginAdjust,
       handleDownload,
       handleCopy,
       returnToLibrary,
-      removeImage,
     ],
   );
 
@@ -345,7 +335,7 @@ export function useTile(adapter: TileAdapter) {
     isAdjusting,
     imageStyle,
     adjust: {
-      start: startAdjusting,
+      start: beginAdjust,
       stop: stopAdjusting,
       save: saveAdjustments,
       handlePointerDown,

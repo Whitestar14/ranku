@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useMotionValue, useSpring, type MotionValue } from "motion/react";
 import { motion as motionPreset } from "@/lib/motion";
+import { observeResize } from "@/utils/resizeObserver";
 
 export interface ScrollDepth {
   /** Spring-smoothed scroll progress: 0 at the top, 1 once fully scrolled. */
@@ -39,15 +40,16 @@ export function useScrollDepth<T extends HTMLElement>(): {
     read();
     el.addEventListener("scroll", read, { passive: true });
 
-    const observer = new ResizeObserver(read);
-    observer.observe(el);
-    for (const child of Array.from(el.children)) observer.observe(child);
+    const stops = [
+      observeResize(el, read),
+      ...Array.from(el.children).map((child) => observeResize(child, read)),
+    ];
 
     return () => {
       el.removeEventListener("scroll", read);
-      observer.disconnect();
+      stops.forEach((stop) => stop());
     };
-  }, []);
+  }, [raw]);
 
   // `prefers-reduced-motion` collapses the spring to an instant jump, so this
   // only needs to track whether the value has crossed out of the resting zone.

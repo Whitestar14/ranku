@@ -8,6 +8,7 @@ import { selectTierRows } from "@/store/selectors";
 import { TierRow } from "@/components/TierRow";
 import { selectActiveBoard } from "@/utils/boardStyle";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Button } from "@/components/ui/Button";
 import {
   DEFAULT_TIER_COLORS,
   FALLBACK_TIER_COLOR,
@@ -91,22 +92,21 @@ export const TierListView = React.memo(function TierListView() {
         title="No tiers yet"
         description="Add a tier to start sorting. Drag items in from the Library, or tap an item and then tap a tier."
         action={
-          <button
-            type="button"
+          <Button
             onClick={handleAddRow}
-            className="flex items-center gap-1.5 h-10 px-5 rounded-full bg-primary text-on-accent
-                       text-subheadline font-semibold active:opacity-65 transition-opacity"
+            icon={<Plus size={17} strokeWidth={2.5} />}
           >
-            <Plus size={17} strokeWidth={2.5} /> Add Tier
-          </button>
+            Add Tier
+          </Button>
         }
       />
     );
   }
 
   return (
-    <div data-export-board="" className="flex flex-col w-full pb-16">
+    <div className="flex flex-col w-full">
       <div
+        data-export-board=""
         className="border border-hairline overflow-hidden"
         style={{ borderRadius: board.tierRadius }}
       >
@@ -127,20 +127,19 @@ export const TierListView = React.memo(function TierListView() {
             />
           ))}
         </AnimatePresence>
-
-        <button
-          type="button"
-          data-export-hide=""
-          onClick={handleAddRow}
-          className="group/add w-full flex items-center justify-center gap-2 h-12
-                     border-t border-hairline bg-surface-secondary/40
-                     text-muted hover:text-text hover:bg-hover
-                     transition-colors duration-150"
-        >
-          <Plus size={17} strokeWidth={2.5} />
-          <span className="text-subheadline font-medium">Add Tier</span>
-        </button>
       </div>
+
+      <button
+        type="button"
+        data-export-hide=""
+        onClick={handleAddRow}
+        className="mt-3 flex w-full items-center justify-center gap-2 h-10 rounded-chip
+                   border border-hairline bg-surface-secondary/30 text-muted
+                   hover:text-text hover:bg-hover transition-colors duration-150"
+      >
+        <Plus size={17} strokeWidth={2.5} />
+        <span className="text-subheadline font-medium">Add Tier</span>
+      </button>
     </div>
   );
 });

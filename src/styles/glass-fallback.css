@@ -13,7 +13,7 @@ html[data-reduce-glass] :where(.card-veil) {
   box-shadow: none;
 }
 
-html[data-reduce-glass] :where(.material-thick) {
+html[data-reduce-glass] :where(.material-thick, .material-popover) {
   background-color: var(--color-surface-elevated);
   box-shadow:
     inset 0 0 0 0.5px var(--material-hairline),

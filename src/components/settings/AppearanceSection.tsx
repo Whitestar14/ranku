@@ -1,7 +1,7 @@
 import React from "react";
-import { Maximize2, Grid, SquareDashedKanban, Square } from "lucide-react";
+import { SquareDashed, Square } from "lucide-react";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { ColorPicker, ColorWheelSwatch } from "@/components/ui/ColorPicker";
+import { SwatchGroup, type SwatchOption } from "@/components/ui/SwatchGroup";
 import {
   Field,
   NumberedSlider,
@@ -10,7 +10,6 @@ import {
 } from "./SettingsParts";
 import { ProjectType, Rank } from "@/types";
 import {
-  DEFAULT_CARD_GAP,
   DEFAULT_CARD_RADIUS,
   DEFAULT_TIER_CORNERS,
   DEFAULT_TIER_SPACING,
@@ -20,17 +19,18 @@ import {
 import { DEFAULT_ASPECT } from "@/utils/ui";
 
 const GRID_BG_COLORS = [
-  "transparent",
-  "#ffffff",
-  "#f2f2f7",
-  "#e5e5ea",
-  "#1c1c1e",
-  "#0f1115",
-  "#181b21",
-  "#1a202c",
-  "#2d3748",
-  "#000000",
-];
+  { value: "auto", name: "Auto — matches light or dark mode" },
+  { value: "transparent", name: "Transparent" },
+  { value: "#ffffff", name: "White" },
+  { value: "#f2f2f7", name: "Light Gray" },
+  { value: "#e5e5ea", name: "Gray" },
+  { value: "#1c1c1e", name: "Charcoal" },
+  { value: "#0f1115", name: "Midnight" },
+  { value: "#181b21", name: "Dark Gray" },
+  { value: "#1a202c", name: "Navy" },
+  { value: "#2d3748", name: "Slate" },
+  { value: "#000000", name: "Black" },
+] as const;
 
 const TRANSPARENT_SWATCH: React.CSSProperties = {
   backgroundColor: "var(--color-surface)",
@@ -39,13 +39,59 @@ const TRANSPARENT_SWATCH: React.CSSProperties = {
   backgroundSize: "8px 8px",
 };
 
+const AUTO_SWATCH: React.CSSProperties = {
+  backgroundImage:
+    "linear-gradient(135deg, #1c1c1e 0%, #1c1c1e 49%, #ffffff 51%, #ffffff 100%)",
+};
+
 const swatchStyle = (color: string): React.CSSProperties =>
-  color === "transparent" ? TRANSPARENT_SWATCH : { backgroundColor: color };
+  color === "transparent"
+    ? TRANSPARENT_SWATCH
+    : color === "auto"
+      ? AUTO_SWATCH
+      : { backgroundColor: color };
+
+/* ------------------------------------------------------------------ */
+/*  Background colour swatch grid                                     */
+/* ------------------------------------------------------------------ */
+
+const BACKGROUND_OPTIONS: readonly SwatchOption[] = GRID_BG_COLORS.map(
+  (color) => ({
+    value: color.value,
+    label: color.name,
+    style: swatchStyle(color.value),
+    checkColor:
+      color.value === "transparent" || color.value === "auto"
+        ? "var(--color-text)"
+        : undefined,
+  }),
+);
+
+const BackgroundColorRow: React.FC<{
+  value: string;
+  onChange: (v: string) => void;
+}> = ({ value, onChange }) => (
+  <SwatchGroup
+    ariaLabel="Background colour"
+    options={BACKGROUND_OPTIONS}
+    value={value}
+    onChange={onChange}
+    custom={{
+      label: "Custom background colour",
+      value: GRID_BG_COLORS.some((color) => color.value === value)
+        ? "#000000"
+        : value,
+      onChange,
+    }}
+  />
+);
+
+/* ------------------------------------------------------------------ */
+/*  Aspect glyph                                                      */
+/* ------------------------------------------------------------------ */
 
 const ASPECT_RATIOS = ["1:1", "3:4", "4:3", "16:9", "9:16"] as const;
 type AspectRatio = (typeof ASPECT_RATIOS)[number];
-
-/** Longest edge of the glyph drawn for a ratio, in px. */
 const GLYPH_MAX = 22;
 
 const AspectGlyph: React.FC<{ ratio: AspectRatio; active: boolean }> = ({
@@ -75,10 +121,13 @@ const AspectGlyph: React.FC<{ ratio: AspectRatio; active: boolean }> = ({
   );
 };
 
+/* ------------------------------------------------------------------ */
+/*  Section                                                           */
+/* ------------------------------------------------------------------ */
+
 interface AppearanceSectionProps {
   projectType: ProjectType;
   aspectRatio: string;
-  style: "card" | "seamless";
   borderless: boolean;
   gap: number;
   borderRadius?: number;
@@ -92,7 +141,6 @@ interface AppearanceSectionProps {
 export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
   projectType,
   aspectRatio,
-  style,
   borderless,
   gap,
   borderRadius,
@@ -102,19 +150,10 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
   rankBackgroundColor,
   onUpdateRank,
 }) => {
-  const supportsTileStyle = projectType === "ranking" || projectType === "list";
+  const showsBorders = projectType === "ranking" || projectType === "list";
 
-  const showsBorders =
-    projectType === "ranking" ||
-    (projectType === "list" && style === "seamless");
-  const showsGap =
-    projectType === "ranking" || (projectType === "list" && style === "card");
-
-  const radius =
-    borderRadius && borderRadius > 0 ? borderRadius : DEFAULT_CARD_RADIUS;
+  const radius = borderRadius ?? DEFAULT_CARD_RADIUS;
   const aspect = aspectRatio || DEFAULT_ASPECT;
-
-  const isCustomColor = !GRID_BG_COLORS.includes(rankBackgroundColor);
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -133,41 +172,27 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
           />
         </Field>
 
-        {supportsTileStyle && (
+        {(projectType === "ranking" || projectType === "list") && (
           <>
-            <Field label={projectType === "list" ? "List Style" : "Grid Style"}>
-              <SegmentedControl
-                value={style}
-                onChange={(val) =>
-                  val === "seamless"
-                    ? onUpdateRank({ style: "seamless" })
-                    : onUpdateRank({
-                        style: "card",
-                        borderRadius: radius,
-                        gap: gap || DEFAULT_CARD_GAP,
-                      })
-                }
-                options={[
-                  {
-                    value: "seamless",
-                    label: "Seamless",
-                    icon: <Maximize2 size={14} />,
-                  },
-                  { value: "card", label: "Card", icon: <Grid size={14} /> },
-                ]}
-              />
-            </Field>
+            <NumberedSlider
+              label="Corner Radius"
+              value={radius}
+              min={0}
+              max={32}
+              step={2}
+              suffix="px"
+              onChange={(v) => onUpdateRank({ borderRadius: v })}
+            />
 
-            {style === "card" && (
-              <NumberedSlider
-                label="Corner Radius"
-                value={radius}
-                min={0}
-                max={32}
-                step={2}
-                onChange={(v) => onUpdateRank({ borderRadius: v })}
-              />
-            )}
+            <NumberedSlider
+              label="Gap"
+              value={gap}
+              min={0}
+              max={32}
+              step={2}
+              suffix="px"
+              onChange={(v) => onUpdateRank({ gap: v })}
+            />
 
             {showsBorders && (
               <Field label="Borders">
@@ -180,7 +205,7 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                     {
                       value: "false",
                       label: "Visible",
-                      icon: <SquareDashedKanban size={14} />,
+                      icon: <SquareDashed size={14} />,
                     },
                     {
                       value: "true",
@@ -190,17 +215,6 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                   ]}
                 />
               </Field>
-            )}
-
-            {showsGap && (
-              <NumberedSlider
-                label="Gap"
-                value={gap}
-                min={0}
-                max={32}
-                step={2}
-                onChange={(v) => onUpdateRank({ gap: v })}
-              />
             )}
           </>
         )}
@@ -247,45 +261,12 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
           </>
         )}
 
-        {/* Background colour picker */}
-        <div className="px-4 py-3.5 flex flex-col gap-3">
-          <span className="text-footnote font-semibold text-text">
-            Background
-          </span>
-          <div className="flex flex-wrap gap-2.5">
-            {GRID_BG_COLORS.map((color) => (
-              <button
-                key={color}
-                onClick={() => onUpdateRank({ backgroundColor: color })}
-                className="relative w-7 h-7 rounded-full transition-transform duration-150"
-                style={{
-                  ...swatchStyle(color),
-                  boxShadow:
-                    rankBackgroundColor === color
-                      ? `0 0 0 2px var(--color-background), 0 0 0 3.5px var(--color-primary)`
-                      : `inset 0 0 0 1px var(--material-hairline)`,
-                  transform:
-                    rankBackgroundColor === color ? "scale(1.1)" : "scale(1)",
-                }}
-                title={color === "transparent" ? "Transparent" : color}
-              />
-            ))}
-
-            <ColorPicker
-              label="Custom background colour"
-              value={isCustomColor ? rankBackgroundColor : "#000000"}
-              onChange={(v) => onUpdateRank({ backgroundColor: v })}
-              className="w-7 h-7 rounded-full transition-transform duration-150"
-              trigger={
-                <ColorWheelSwatch
-                  size={28}
-                  active={isCustomColor}
-                  value={isCustomColor ? rankBackgroundColor : undefined}
-                />
-              }
-            />
-          </div>
-        </div>
+        <Field label="Background">
+          <BackgroundColorRow
+            value={rankBackgroundColor}
+            onChange={(v) => onUpdateRank({ backgroundColor: v })}
+          />
+        </Field>
       </SettingsCard>
     </div>
   );

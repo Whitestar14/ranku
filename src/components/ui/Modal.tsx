@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { cn } from "@/utils";
 import { X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 export interface ModalProps {
   isOpen: boolean;
@@ -44,6 +45,7 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const isAction = variant === "action";
   const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef, isOpen, { autoFocus: false });
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -60,7 +62,10 @@ export const Modal: React.FC<ModalProps> = ({
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    panelRef.current?.focus({ preventScroll: true });
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) {
+      panel.focus({ preventScroll: true });
+    }
 
     return () => {
       document.removeEventListener("keydown", onKeyDown);
@@ -119,22 +124,22 @@ export const Modal: React.FC<ModalProps> = ({
             {title &&
               (isAction ? (
                 <div className="relative shrink-0 px-3 pt-5 pb-1 text-center">
-                  <h2 className="text-body font-semibold text-text leading-tight">
+                  <h2 className="line-clamp-2 wrap-break-word text-body font-semibold text-text leading-tight">
                     {title}
                   </h2>
                   {description && (
-                    <p className="mt-1 text-footnote text-muted leading-snug">
+                    <p className="mt-1 line-clamp-3 wrap-break-word text-footnote text-muted leading-snug">
                       {description}
                     </p>
                   )}
                 </div>
               ) : (
                 <div className="relative shrink-0 px-12 pb-3 pt-4 text-center border-b border-hairline">
-                  <h2 className="text-headline font-semibold text-text truncate">
+                  <h2 className="truncate text-headline font-semibold text-text">
                     {title}
                   </h2>
                   {description && (
-                    <p className="mt-0.5 text-footnote text-muted leading-snug">
+                    <p className="mt-0.5 line-clamp-2 wrap-break-word text-footnote text-muted leading-snug">
                       {description}
                     </p>
                   )}

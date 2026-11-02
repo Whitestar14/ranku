@@ -5,10 +5,7 @@ export const SectionHeader: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => (
   <div className="flex items-center gap-3 px-5">
-    <span
-      className="text-caption-1 font-semibold text-muted shrink-0"
-      style={{ letterSpacing: "0.055em", textTransform: "uppercase" }}
-    >
+    <span className="text-caption-1 font-semibold text-muted shrink-0">
       {children}
     </span>
     <div
@@ -58,7 +55,7 @@ export const Field: React.FC<{
   </div>
 );
 
-/** A slider row with its label and live numeric readout. */
+/** A slider row with its label, live readout, and range endpoints. */
 export const NumberedSlider: React.FC<{
   label: string;
   value: number;
@@ -84,5 +81,15 @@ export const NumberedSlider: React.FC<{
       value={value}
       onChange={onChange}
     />
+    <div className="flex justify-between px-0.5 text-caption-2 text-muted tabular-nums">
+      <span>
+        {min}
+        {suffix}
+      </span>
+      <span>
+        {max}
+        {suffix}
+      </span>
+    </div>
   </div>
 );

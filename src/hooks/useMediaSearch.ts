@@ -11,7 +11,7 @@ import {
 
 class OfflineError extends Error {}
 
-const DEBOUNCE_MS = 400;
+const DEBOUNCE_MS = 300;
 const MIN_QUERY_LENGTH = 2;
 
 export type SearchErrorKind = "offline" | "unavailable" | "unknown";

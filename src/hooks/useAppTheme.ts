@@ -1,13 +1,27 @@
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useStore } from "@/store/useStore";
 import { selectTheme, selectPreferences } from "@/store/selectors";
-import { isKnownPalette, accentForeground } from "@/theme/palettes";
+import { accentForeground } from "@/theme/palettes";
+
+const TRANSPARENCY_QUERY = "(prefers-reduced-transparency: reduce)";
 
 /** Applies the active appearance and accent to `<html>`. */
 export function useAppTheme(isLoaded: boolean) {
   const theme = useStore(selectTheme);
   const preferences = useStore(selectPreferences);
   const reduceGlassEffects = preferences.reduceGlassEffects ?? false;
+  const [systemReduce, setSystemReduce] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia(TRANSPARENCY_QUERY).matches,
+  );
+
+  useLayoutEffect(() => {
+    const query = window.matchMedia(TRANSPARENCY_QUERY);
+    const onChange = () => setSystemReduce(query.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
 
   useLayoutEffect(() => {
     if (!isLoaded || !theme) return;
@@ -19,20 +33,12 @@ export function useAppTheme(isLoaded: boolean) {
 
     try {
       localStorage.setItem("theme", isDark ? "dark" : "light");
-    } catch {
-    }
-
-    const paletteId = isKnownPalette(theme.paletteId)
-      ? theme.paletteId
-      : isDark
-        ? "ios-dark"
-        : "ios-light";
-    root.dataset.theme = paletteId;
+    } catch {}
 
     root.style.setProperty("--color-primary", theme.accentColor);
     root.style.setProperty(
       "--color-on-accent",
-      accentForeground(theme.accentColor)
+      accentForeground(theme.accentColor),
     );
 
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -43,9 +49,11 @@ export function useAppTheme(isLoaded: boolean) {
   }, [theme, isLoaded]);
 
   useLayoutEffect(() => {
-    document.documentElement.toggleAttribute(
+    const root = document.documentElement;
+    root.toggleAttribute(
       "data-reduce-glass",
-      reduceGlassEffects
+      reduceGlassEffects || systemReduce,
     );
-  }, [reduceGlassEffects]);
+    root.toggleAttribute("data-no-grain", preferences.disableGrain ?? false);
+  }, [reduceGlassEffects, systemReduce, preferences.disableGrain]);
 }
