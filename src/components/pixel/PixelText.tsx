@@ -12,6 +12,8 @@ interface PixelTextProps {
   className?: string;
   /** Overrides the readable label when the bitmap is decorative. */
   label?: string;
+  /** Shrinks to the container instead of forcing the bitmap's natural width. */
+  fit?: boolean;
 }
 
 /**
@@ -26,6 +28,7 @@ export const PixelText: React.FC<PixelTextProps> = ({
   height = 14,
   className,
   label,
+  fit = false,
 }) => {
   /* A title is user content, so a character the bitmap cannot draw must not
      vanish. Falling back to the interface face keeps every name readable while
@@ -47,8 +50,10 @@ export const PixelText: React.FC<PixelTextProps> = ({
   return (
     <svg
       viewBox={`0 0 ${units} ${PIXEL_ROWS}`}
-      width={(units / PIXEL_ROWS) * height}
+      width={fit ? undefined : (units / PIXEL_ROWS) * height}
       height={height}
+      preserveAspectRatio={fit ? "xMinYMid meet" : undefined}
+      style={fit ? { maxWidth: "100%" } : undefined}
       role="img"
       aria-label={label ?? text}
       fill="currentColor"

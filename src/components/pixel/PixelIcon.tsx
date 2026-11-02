@@ -154,20 +154,40 @@ const ICONS = {
 } as const;
 
 export type PixelIconName = keyof typeof ICONS;
-const ICON_CELLS = 9;
 
-const iconPath = (rows: readonly string[]) => {
+interface IconGeometry {
+  d: string;
+  cells: number;
+}
+
+const geometryCache = new Map<PixelIconName, IconGeometry>();
+
+/** Icons may be any grid size; the path is centred in a square viewBox. */
+const iconGeometry = (name: PixelIconName): IconGeometry => {
+  const cached = geometryCache.get(name);
+  if (cached) return cached;
+
+  const rows = ICONS[name] as readonly string[];
+  const width = Math.max(...rows.map((row) => row.length));
+  const height = rows.length;
+  const cells = Math.max(width, height);
+  const offsetX = Math.floor((cells - width) / 2);
+  const offsetY = Math.floor((cells - height) / 2);
+
   let d = "";
   rows.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) {
       if (row[x] !== "#") continue;
       let run = 1;
       while (row[x + run] === "#") run++;
-      d += `M${x} ${y}h${run}v1h-${run}z`;
+      d += `M${x + offsetX} ${y + offsetY}h${run}v1h-${run}z`;
       x += run - 1;
     }
   });
-  return d;
+
+  const geometry = { d, cells };
+  geometryCache.set(name, geometry);
+  return geometry;
 };
 
 interface PixelIconProps {
@@ -194,18 +214,21 @@ export const PixelIcon: React.FC<PixelIconProps> = ({
   size = 18,
   className,
   label,
-}) => (
-  <svg
-    viewBox={`0 0 ${ICON_CELLS} ${ICON_CELLS}`}
-    width={size}
-    height={size}
-    role={label ? "img" : "presentation"}
-    aria-label={label}
-    aria-hidden={label ? undefined : true}
-    fill="currentColor"
-    shapeRendering="crispEdges"
-    className={className}
-  >
-    <path d={iconPath(ICONS[name])} />
-  </svg>
-);
+}) => {
+  const { d, cells } = iconGeometry(name);
+  return (
+    <svg
+      viewBox={`0 0 ${cells} ${cells}`}
+      width={size}
+      height={size}
+      role={label ? "img" : "presentation"}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+      fill="currentColor"
+      shapeRendering="crispEdges"
+      className={className}
+    >
+      <path d={d} />
+    </svg>
+  );
+};

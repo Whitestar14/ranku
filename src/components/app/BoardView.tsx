@@ -45,11 +45,9 @@ export const BoardWatermark: React.FC<{
   if (!showWatermark && !showDate) return null;
 
   return (
-    <div className="flex justify-between items-end px-2 mt-8 pt-4 border-t border-hairline opacity-45">
+    <div className="flex justify-between items-end gap-4 px-2 mt-4 opacity-45">
       {showWatermark && (
         <div className="flex items-center" style={{ color: textColor }}>
-          {/* 14px is exactly two bitmap pixels per unit, so the word stays
-              crisp instead of picking up uneven steps. */}
           <PixelWordmark />
         </div>
       )}

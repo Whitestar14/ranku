@@ -1,16 +1,12 @@
-/** Line box as a multiple of the type size. Mirrors what the span renders. */
 export const TIER_LABEL_LINE_HEIGHT = 1.15;
-/** Horizontal room the block spends on padding, in px (2 × 6). */
 const BLOCK_PADDING_X = 12;
-/** Vertical room the block keeps clear of its own edges, in px. */
 const BLOCK_PADDING_Y = 10;
 const MIN_SIZE = 8;
 const MAX_SIZE = 46;
-/** Type is measured once at this size and scaled, for sub-pixel accuracy. */
 const REFERENCE_SIZE = 100;
 
 const FONT_STACK =
-  'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  '"Work Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
 
 const FONT = `700 ${REFERENCE_SIZE}px ${FONT_STACK}`;
 
@@ -23,9 +19,6 @@ const advance = (text: string, size: number): number => {
     measuringContext = document.createElement("canvas").getContext("2d");
     if (measuringContext) measuringContext.font = FONT;
   }
-  /* No canvas (very old browsers, or a test environment): fall back to the
-     average advance of a bold sans, which is close enough to keep the label
-     inside its block. */
   if (!measuringContext) return text.length * size * 0.56;
   return (measuringContext.measureText(text).width * size) / REFERENCE_SIZE;
 };
@@ -84,7 +77,10 @@ export const fitTierLabel = (
     words[0],
   );
 
-  const usableWidth = Math.max(8, width - BLOCK_PADDING_X);
+  /* Two pixels of slack: canvas advances and the browser's layout can differ
+     by a hair, and a label that measures 1px too wide breaks its last letter
+     onto a second line. */
+  const usableWidth = Math.max(8, width - BLOCK_PADDING_X - 2);
   const usableHeight = Math.max(8, height - BLOCK_PADDING_Y);
   const ceiling = Math.max(MIN_SIZE, Math.min(MAX_SIZE, Math.round(cap)));
 
@@ -101,9 +97,8 @@ export const fitTierLabel = (
     };
   }
 
-  /* Nothing fits: a single unbreakable word wider than the block (a 24-char
-     handle, say). Keep the type small and let it break mid-word, clipped to the
-     rows the block can show. */
+  /* Nothing fits: a single unbreakable word wider than the block. Keep the type
+     small and break mid-word rather than paint past the edge. */
   const lineHeight = MIN_SIZE * TIER_LABEL_LINE_HEIGHT;
   return {
     fontSize: MIN_SIZE,

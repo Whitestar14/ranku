@@ -14,7 +14,6 @@ interface ExportModalProps {
     trimPadding: boolean,
   ) => void;
   onCopyImage?: (qualityScale: number, trimPadding: boolean) => void;
-  /** Crop the capture to the artwork rather than the board's page margin. */
   trimPadding: boolean;
   onTrimPaddingChange: (trim: boolean) => void;
 }
@@ -34,94 +33,85 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
+      title="Export Project"
+      description="Choose how you want to save your work."
       className="max-w-[320px]"
-      contentClassName="p-0"
+      contentClassName="flex flex-col gap-4"
+      footerFlush
+      footer={
+        <div className="flex flex-col gap-2 px-4 pb-4 pt-1">
+          <Button
+            fullWidth
+            size="lg"
+            icon={<FileImage size={18} />}
+            onClick={() => {
+              onExportImage(format, quality, trimPadding);
+              onClose();
+            }}
+          >
+            Save as Image
+          </Button>
+          <Button
+            fullWidth
+            size="lg"
+            variant="gray"
+            icon={<Copy size={18} />}
+            onClick={() => {
+              if (onCopyImage) onCopyImage(quality, trimPadding);
+              onClose();
+            }}
+          >
+            Copy to Clipboard
+          </Button>
+        </div>
+      }
     >
-      <div className="flex flex-col">
-        <div className="p-5 pb-3 text-center border-b border-border">
-          <h3 className="text-body font-semibold text-text leading-tight">
-            Export Project
-          </h3>
-          <p className="text-footnote text-muted mt-1">
-            Choose how you want to save your work.
-          </p>
-        </div>
+      <div className="flex flex-col gap-2">
+        <span className="text-caption-2 font-semibold text-muted uppercase tracking-[0.05em]">
+          Image Format
+        </span>
+        <SegmentedControl
+          value={format}
+          onChange={(val) => setFormat(val as ImageFormat)}
+          options={[
+            { value: "png", label: "PNG" },
+            { value: "jpeg", label: "JPG" },
+          ]}
+        />
+      </div>
 
-        <div className="p-4 flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            <span className="text-caption-1 font-medium text-muted uppercase tracking-wider ml-1">
-              Image Format
-            </span>
-            <SegmentedControl
-              value={format}
-              onChange={(val) => setFormat(val as ImageFormat)}
-              options={[
-                { value: "png", label: "PNG" },
-                { value: "jpeg", label: "JPG" }
-              ]}
-            />
-          </div>
+      <div className="flex flex-col gap-2">
+        <span className="text-caption-2 font-semibold text-muted uppercase tracking-[0.05em]">
+          Frame
+        </span>
+        <SegmentedControl
+          value={trimPadding ? "trim" : "board"}
+          onChange={(val) => onTrimPaddingChange(val === "trim")}
+          options={[
+            { value: "trim", label: "Trimmed" },
+            { value: "board", label: "Padded" },
+          ]}
+        />
+        <p className="text-caption-1 text-muted leading-snug">
+          {trimPadding
+            ? "The image ends where your artwork does."
+            : "Keeps the board's margin around the artwork."}
+        </p>
+      </div>
 
-          <div className="flex flex-col gap-2">
-            <span className="text-caption-1 font-medium text-muted uppercase tracking-wider ml-1">
-              Frame
-            </span>
-            <SegmentedControl
-              value={trimPadding ? "trim" : "board"}
-              onChange={(val) => onTrimPaddingChange(val === "trim")}
-              options={[
-                { value: "trim", label: "Trimmed" },
-                { value: "board", label: "Padded" },
-              ]}
-            />
-            <p className="text-caption-1 text-muted leading-snug px-1">
-              {trimPadding
-                ? "The image ends where your artwork does."
-                : "Keeps the board's margin around the artwork."}
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <span className="text-caption-1 font-medium text-muted uppercase tracking-wider ml-1">
-              Export Quality
-            </span>
-            <SegmentedControl
-              value={quality.toString()}
-              onChange={(val) => setQuality(parseInt(val))}
-              options={[
-                { value: "1", label: "1x (SD)" },
-                { value: "2", label: "2x (HD)" },
-                { value: "3", label: "3x (4K)" }
-              ]}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2 mt-2">
-            <Button
-              fullWidth
-              size="lg"
-              icon={<FileImage size={18} />}
-              onClick={() => {
-                onExportImage(format, quality, trimPadding);
-                onClose();
-              }}
-            >
-              Save as Image
-            </Button>
-            <Button
-              fullWidth
-              size="lg"
-              variant="gray"
-              icon={<Copy size={18} />}
-              onClick={() => {
-                if (onCopyImage) onCopyImage(quality, trimPadding);
-                onClose();
-              }}
-            >
-              Copy to Clipboard
-            </Button>
-          </div>
-        </div>
+      <div className="flex flex-col gap-2">
+        <span className="text-caption-2 font-semibold text-muted uppercase tracking-[0.05em]">
+          Export Quality
+        </span>
+        <SegmentedControl
+          value={quality.toString()}
+          onChange={(val) => setQuality(parseInt(val))}
+          options={[
+            { value: "1", label: "1x (SD)" },
+            { value: "2", label: "2x (HD)" },
+            { value: "3", label: "3x (4K)" },
+          ]}
+        />
       </div>
     </Modal>
   );

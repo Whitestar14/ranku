@@ -7,16 +7,15 @@ import { RemoteImage } from "./ui/RemoteImage";
 import { AdjustOverlay } from "./ui/AdjustOverlay";
 import { UrlInputModal } from "./ui/UrlInputModal";
 import { useCellInteraction } from "@/hooks/useCellInteraction";
-import { useIsDragging } from "@/state/dragState";
 import { useStore } from "@/store/useStore";
 import { widthForHeight } from "@/utils/ui";
 import { useTile } from "./tile/useTile";
 import {
   DEFAULT_TIER_ROW_HEIGHT,
-  DEFAULT_TIER_SPACING,
+  DEFAULT_TIER_CORNERS,
   tierItemRadius,
   tileStateShadow,
-  type TierSpacing,
+  type TierCorners,
 } from "@/utils/boardStyle";
 
 interface TierItemProps {
@@ -26,7 +25,7 @@ interface TierItemProps {
   aspectRatio: string;
   /** Item rail height, so every tier row lines up. */
   height?: number;
-  spacing?: TierSpacing;
+  corners?: TierCorners;
 }
 
 export const TierItem = React.memo(function TierItem({
@@ -35,7 +34,7 @@ export const TierItem = React.memo(function TierItem({
   item,
   aspectRatio,
   height = DEFAULT_TIER_ROW_HEIGHT,
-  spacing = DEFAULT_TIER_SPACING,
+  corners = DEFAULT_TIER_CORNERS,
 }: TierItemProps) {
   const handleItemTransfer = useStore((s) => s.handleItemTransfer);
   const handleUpdateTierItem = useStore((s) => s.handleUpdateTierItem);
@@ -78,7 +77,7 @@ export const TierItem = React.memo(function TierItem({
   );
 
   const width = widthForHeight(aspectRatio, height);
-  const radius = tierItemRadius(height, spacing);
+  const radius = tierItemRadius(height, corners);
 
   return (
     <div
@@ -201,26 +200,14 @@ export const TierRail: React.FC<{
   rowId: string;
   height: number;
   gap: number;
-  itemRadius: number;
-  isEmpty?: boolean;
-  aspectRatio: string;
   children: React.ReactNode;
   justify?: "left" | "center" | "right";
-}> = ({
-  rowId,
-  height,
-  gap,
-  itemRadius,
-  isEmpty,
-  aspectRatio,
-  children,
-  justify,
-}) => {
+}> = ({ rowId, height, gap, children, justify }) => {
   const { isOver, setNodeRef } = useDroppable({
     id: `tier-row-body-${rowId}`,
     data: { type: "tier-cell", rowId, index: -1 },
   });
-  const isDraggingAny = useIsDragging();
+  const isPlacing = useStore((s) => s.placement !== null);
 
   const { handleInteraction } = useCellInteraction({
     type: "tier-item",
@@ -241,36 +228,23 @@ export const TierRail: React.FC<{
       onClick={(e) =>
         handleInteraction(e.clientX, e.clientY, e.target as HTMLElement)
       }
-      className={`relative flex-1 min-w-0 flex flex-wrap content-start items-start ${justifyClass}`}
+      className={`relative flex-1 min-w-0 flex flex-wrap content-start items-start ${justifyClass} ${
+        isPlacing ? "cursor-crosshair" : ""
+      }`}
       style={{
         gap,
         padding: gap,
         minHeight: height + gap * 2,
         backgroundColor: isOver
           ? "color-mix(in srgb, var(--color-primary) 10%, transparent)"
-          : undefined,
+          : isPlacing
+            ? "color-mix(in srgb, var(--color-primary) 4%, transparent)"
+            : undefined,
         transition:
           "gap 240ms var(--ease-emphasized), padding 240ms var(--ease-emphasized), min-height 240ms var(--ease-emphasized), background-color 150ms var(--ease-standard)",
       }}
     >
       {children}
-
-      {isEmpty && isDraggingAny && (
-        <span
-          aria-hidden
-          data-export-hide=""
-          className="pointer-events-none shrink-0 grid place-items-center
-                     border border-dashed border-primary/55 text-primary
-                     transition-colors duration-200"
-          style={{
-            width: widthForHeight(aspectRatio, height),
-            height,
-            borderRadius: itemRadius,
-          }}
-        >
-          <span className="text-caption-2 font-medium select-none">Drop</span>
-        </span>
-      )}
     </div>
   );
 };

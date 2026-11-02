@@ -97,9 +97,14 @@ export function useMediaSearch({ query, mode, prefer }: UseMediaSearchOptions) {
     const term = query.trim();
     if (term.length < MIN_QUERY_LENGTH) {
       requestId.current++;
+      abortRef.current?.abort();
+      abortRef.current = null;
       setResults([]);
       setHasSearched(false);
       setError(null);
+      setLoading(false);
+      setDegraded(false);
+      setAnsweredBy(null);
       return;
     }
     const timer = setTimeout(() => runSearch(term, mode, prefer), DEBOUNCE_MS);

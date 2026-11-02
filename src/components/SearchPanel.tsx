@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { CloudOff, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { PopoverMenu } from "@/components/ui/PopoverMenu";
@@ -90,7 +90,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0 px-1 animate-in fade-in">
+    <div className="flex flex-col h-full min-h-0 animate-in fade-in">
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2 shrink-0">
         <div className="flex-1 min-w-0">
           <Input
@@ -101,6 +101,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             onChange={(e) => onQueryChange(e.target.value)}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
+            autoCorrect="off"
             placeholder={`Search ${mode === "anime" ? "anime" : "characters"}`}
             className={`font-normal bg-surface-secondary border-transparent rounded-full h-9 pl-9
                         transition-[background-color,border-color,box-shadow] duration-150
@@ -138,40 +139,31 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
       </div>
 
       {degraded && !loading && !error && results.length > 0 && answeredBy && (
-        <div
-          className="flex items-center gap-2 mb-2 pl-2.5 pr-1.5 py-1 shrink-0 min-w-0
-                     material-card rounded-full text-caption-1 text-muted"
-        >
-          <CloudOff size={12} className="shrink-0" />
-          <span className="truncate">
-            {SOURCE_OPTIONS.find((o) => o.value === imageSource)?.label ??
-              "Catalogue"}{" "}
-            is unavailable — {answeredBy} answered
-          </span>
+        <p className="shrink-0 mb-2 px-1 text-caption-1 text-muted">
+          {SOURCE_SHORT[imageSource]} unavailable · showing {answeredBy}.{" "}
           <button
             type="button"
             onClick={retry}
-            aria-label="Try the preferred catalogue again"
-            title="Try again"
-            className="ml-auto grid place-items-center w-6 h-6 rounded-full shrink-0
-                       text-muted hover:text-text hover:bg-hover transition-colors"
+            className="font-semibold text-primary hover:opacity-70 transition-opacity"
           >
-            <RefreshCw size={12} />
+            Retry
           </button>
-        </div>
+        </p>
       )}
 
       <div className="relative flex-1 min-h-0">
-        <div
-          ref={listRef}
-          className="h-full overflow-y-auto overflow-x-hidden scrollbar-ios overscroll-contain"
-        >
+        <div ref={listRef} className="h-full overflow-hidden">
           {loading ? (
             <SearchLoadingPane />
           ) : error ? (
             <SearchErrorPane error={error} onRetry={retry} />
           ) : results.length > 0 ? (
-            <ScrollRail className="pb-2" contentClassName="pt-0.5" paging>
+            <ScrollRail
+              className="h-full pb-2"
+              scrollerClassName="h-full"
+              contentClassName="pt-0.5"
+              align="start"
+            >
               {results.map((item) => (
                 <SearchResultCard
                   key={item.id}

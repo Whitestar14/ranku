@@ -10,7 +10,8 @@ import {
   emptyImageActions,
   filledImageActions,
 } from "@/components/ui/imageActions";
-import { downloadImage } from "@/utils/imageProxy";
+import { copyImageToClipboard, downloadImage } from "@/utils/imageProxy";
+import { useToast } from "@/context/ToastContext";
 import { DRAG_TYPE, DROP_TYPE } from "@/constants/drag";
 
 /**
@@ -98,6 +99,7 @@ export function useTile(adapter: TileAdapter) {
     filename,
   } = adapter;
 
+  const addToast = useToast();
   const tileRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -105,7 +107,7 @@ export function useTile(adapter: TileAdapter) {
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
   const [isFileDragOver, setIsFileDragOver] = useState(false);
 
-  const { isSelected, handleInteraction, clearInteraction } =
+  const { isSelected, handleInteraction, clearInteraction, place } =
     useCellInteraction({
       type: rowId ? "tier-item" : "cell",
       index,
@@ -251,6 +253,16 @@ export function useTile(adapter: TileAdapter) {
     void downloadImage(item.imageSrc, filename);
   }, [item?.imageSrc, filename]);
 
+  const handleCopy = useCallback(() => {
+    if (!item?.imageSrc) return;
+    void copyImageToClipboard(item.imageSrc).then((ok) => {
+      addToast(
+        ok ? "success" : "error",
+        ok ? "Image copied!" : "Could not copy this image",
+      );
+    });
+  }, [item?.imageSrc, addToast]);
+
   const handleFileDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
@@ -285,6 +297,7 @@ export function useTile(adapter: TileAdapter) {
             onReplace: triggerPicker,
             onAdjust: startAdjusting,
             onDownload: handleDownload,
+            onCopy: handleCopy,
             onReturnToLibrary: returnToLibrary,
             onRemove: removeImage,
           })
@@ -299,6 +312,7 @@ export function useTile(adapter: TileAdapter) {
       triggerPicker,
       startAdjusting,
       handleDownload,
+      handleCopy,
       returnToLibrary,
       removeImage,
     ],
@@ -355,6 +369,7 @@ export function useTile(adapter: TileAdapter) {
     submitUrl,
 
     activate,
+    place,
     handleDoubleClick,
     handleFileDrop,
     handleFileDragOver,

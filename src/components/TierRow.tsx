@@ -10,17 +10,20 @@ import {
   Trash2,
 } from "lucide-react";
 import { TierRow as TierRowData } from "@/types";
+import { useStore } from "@/store/useStore";
 import { PopoverMenu } from "./ui/PopoverMenu";
 import { Modal } from "./ui/Modal";
 import { Input } from "./ui/Input";
+import { Button } from "./ui/Button";
 import { ColorPicker, ColorWheelSwatch } from "./ui/ColorPicker";
 import { TierItem, TierRail } from "./TierItem";
 import { TierLabel } from "./tier/TierLabel";
 import {
   DEFAULT_TIER_ROW_HEIGHT,
   DEFAULT_TIER_SPACING,
+  DEFAULT_TIER_CORNERS,
   tierGapFor,
-  tierItemRadius,
+  type TierCorners,
   type TierSpacing,
 } from "@/utils/boardStyle";
 import { TIER_COLORS } from "@/constants/tierColors";
@@ -34,6 +37,7 @@ interface TierRowProps {
   aspectRatio: string;
   height?: number;
   spacing?: TierSpacing;
+  corners?: TierCorners;
   justify?: "left" | "center" | "right";
   onUpdate: (rowId: string, updates: Partial<TierRowData>) => void;
   onMove: (index: number, direction: "up" | "down") => void;
@@ -46,6 +50,7 @@ export const TierRow = React.memo(function TierRow({
   aspectRatio,
   height = DEFAULT_TIER_ROW_HEIGHT,
   spacing = DEFAULT_TIER_SPACING,
+  corners = DEFAULT_TIER_CORNERS,
   justify,
   onUpdate,
   onMove,
@@ -58,7 +63,7 @@ export const TierRow = React.memo(function TierRow({
 
   const labelRef = useRef<HTMLButtonElement>(null);
   const textColor = getContrastColor(row.color);
-  const isEmpty = row.items.length === 0;
+  const isPlacing = useStore((s) => s.placement !== null);
 
   const { setNodeRef: setDroppableRef, isOver } = useDroppable({
     id: `tier-row-drop-${row.id}`,
@@ -95,19 +100,24 @@ export const TierRow = React.memo(function TierRow({
     e.stopPropagation();
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
-    if (rect) setAnchor({ x: rect.left + rect.width / 2, y: rect.bottom + 4 });
+    setAnchor({ x: rect.left + rect.width / 2, y: rect.bottom + 4 });
     setIsMenuOpen(true);
   }, []);
 
   const railInset = tierGapFor(spacing);
-  const itemRadius = tierItemRadius(height, spacing);
   const labelCap = Math.min(46, Math.round(height * 0.46));
+
+  const saveLabel = () => {
+    onUpdate(row.id, { label: (draftLabel || "?").trim() || "?" });
+    setIsEditorOpen(false);
+  };
 
   return (
     <motion.div
       layout="position"
       transition={layoutMotion}
-      className="item-enter group/tier relative flex items-stretch bg-surface
+      exit={{ opacity: 0, height: 0 }}
+      className="item-enter group/tier relative flex items-stretch overflow-hidden bg-surface
                  [&:not(:first-child)]:border-t [&:not(:first-child)]:border-hairline"
       style={
         {
@@ -115,7 +125,6 @@ export const TierRow = React.memo(function TierRow({
         } as React.CSSProperties
       }
     >
-      {/* Label block */}
       <button
         ref={setLabelRefs}
         type="button"
@@ -123,6 +132,22 @@ export const TierRow = React.memo(function TierRow({
         {...listeners}
         onClick={(e) => {
           e.stopPropagation();
+          if (isPlacing) {
+            const store = useStore.getState();
+            const image = store.placement;
+            if (image) {
+              store.handleItemTransfer(
+                {
+                  type: "inbox",
+                  collectionId: image.collectionId,
+                  itemId: image.itemId,
+                },
+                { type: "tier", rowId: row.id, targetIndex: -1 },
+              );
+              store.setPlacement(null);
+            }
+            return;
+          }
           setDraftLabel(row.label);
           setIsEditorOpen(true);
         }}
@@ -150,8 +175,7 @@ export const TierRow = React.memo(function TierRow({
         <span
           aria-hidden
           data-export-hide=""
-          className="absolute left-1 top-1 text-current opacity-0
-                     group-hover/tier:opacity-45 transition-opacity duration-150"
+          className="absolute left-1 top-1 opacity-0 group-hover/tier:opacity-45 transition-opacity duration-150"
           style={{ color: textColor }}
         >
           <GripVertical size={13} />
@@ -160,15 +184,11 @@ export const TierRow = React.memo(function TierRow({
         <TierLabel label={row.label} color={textColor} cap={labelCap} />
       </button>
 
-      {/* Items rail */}
       <TierRail
         rowId={row.id}
         height={height}
         gap={railInset}
-        itemRadius={itemRadius}
-        aspectRatio={aspectRatio}
         justify={justify}
-        isEmpty={isEmpty}
       >
         {row.items.map((item, idx) => (
           <TierItem
@@ -178,12 +198,11 @@ export const TierRow = React.memo(function TierRow({
             item={item}
             aspectRatio={aspectRatio}
             height={height}
-            spacing={spacing}
+            corners={corners}
           />
         ))}
       </TierRail>
 
-      {/* Row controls */}
       <div
         data-export-hide=""
         className="relative w-[34px] shrink-0 flex items-center justify-center"
@@ -230,110 +249,101 @@ export const TierRow = React.memo(function TierRow({
         triggerPoint={anchor}
       />
 
-      {/* Tier editor */}
       <Modal
         isOpen={isEditorOpen}
         onClose={() => setIsEditorOpen(false)}
         title="Edit Tier"
         className="max-w-sm"
-      >
-        <div className="flex flex-col gap-5">
-          <div className="flex items-center gap-3">
-            <div
-              className="relative w-16 h-16 shrink-0 squircle overflow-hidden"
-              style={{
-                backgroundColor: row.color,
-                borderRadius: "var(--radius-control)",
-              }}
-            >
-              <TierLabel label={draftLabel || "?"} color={textColor} cap={30} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <label
-                htmlFor={`tier-label-${row.id}`}
-                className="block text-caption-2 font-semibold text-muted uppercase tracking-[0.04em] mb-1.5"
-              >
-                Tier Name
-              </label>
-              <Input
-                id={`tier-label-${row.id}`}
-                value={draftLabel}
-                maxLength={24}
-                onChange={(e) => setDraftLabel(e.target.value)}
-                placeholder="S"
-              />
-            </div>
-          </div>
-
-          <div>
-            <span className="block text-caption-2 font-semibold text-muted uppercase tracking-[0.04em] mb-2">
-              Colour
-            </span>
-            <div className="flex flex-wrap gap-2.5">
-              {TIER_COLORS.map((color) => {
-                const active = row.color.toLowerCase() === color.toLowerCase();
-                return (
-                  <button
-                    key={color}
-                    type="button"
-                    aria-label={`Set tier colour ${color}`}
-                    aria-pressed={active}
-                    onClick={() =>
-                      onUpdate(row.id, { color: normalizeTierColor(color) })
-                    }
-                    className="w-8 h-8 rounded-full transition-transform duration-150 active:scale-90"
-                    style={{
-                      backgroundColor: color,
-                      boxShadow: active
-                        ? "0 0 0 2px var(--color-background), 0 0 0 4px var(--color-text)"
-                        : "inset 0 0 0 0.5px var(--material-hairline)",
-                    }}
-                  />
-                );
-              })}
-
-              <ColorPicker
-                label="Custom tier colour"
-                value={row.color}
-                onChange={(v) =>
-                  onUpdate(row.id, { color: normalizeTierColor(v) })
-                }
-                className="w-8 h-8 rounded-full"
-                trigger={
-                  <ColorWheelSwatch
-                    size={32}
-                    value={row.color}
-                    active={
-                      !TIER_COLORS.some(
-                        (c) => c.toLowerCase() === row.color.toLowerCase(),
-                      )
-                    }
-                  />
-                }
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-1">
-            <button
-              type="button"
-              onClick={() => {
-                onUpdate(row.id, { label: (draftLabel || "?").trim() || "?" });
-                setIsEditorOpen(false);
-              }}
-              className="flex-1 h-11 rounded-full bg-primary text-on-accent text-subheadline font-semibold
-                         active:opacity-65 transition-opacity"
-            >
+        contentClassName="flex flex-col gap-5"
+        footer={
+          <>
+            <Button fullWidth size="lg" onClick={saveLabel}>
               Save
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              fullWidth
+              size="lg"
+              variant="gray"
               onClick={() => setIsEditorOpen(false)}
-              className="flex-1 h-11 rounded-full bg-surface-secondary text-text text-subheadline font-semibold
-                         active:opacity-65 transition-opacity"
             >
               Cancel
-            </button>
+            </Button>
+          </>
+        }
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className="relative w-16 h-16 shrink-0 overflow-hidden rounded-chip"
+            style={{ backgroundColor: row.color }}
+          >
+            <TierLabel label={draftLabel || "?"} color={textColor} cap={28} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <label
+              htmlFor={`tier-label-${row.id}`}
+              className="block text-caption-2 font-semibold text-muted uppercase tracking-[0.04em] mb-1.5"
+            >
+              Tier Name
+            </label>
+            <Input
+              id={`tier-label-${row.id}`}
+              value={draftLabel}
+              maxLength={24}
+              onChange={(e) => setDraftLabel(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveLabel();
+              }}
+              placeholder="S"
+            />
+          </div>
+        </div>
+
+        <div>
+          <span className="block text-caption-2 font-semibold text-muted uppercase tracking-[0.04em] mb-2">
+            Colour
+          </span>
+          <div className="flex flex-wrap gap-2.5">
+            {TIER_COLORS.map((color) => {
+              const active = row.color.toLowerCase() === color.toLowerCase();
+              return (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`Set tier colour ${color}`}
+                  aria-pressed={active}
+                  onClick={() =>
+                    onUpdate(row.id, { color: normalizeTierColor(color) })
+                  }
+                  className="w-8 h-8 rounded-full transition-transform duration-150 active:scale-90"
+                  style={{
+                    backgroundColor: color,
+                    boxShadow: active
+                      ? "0 0 0 2px var(--color-background), 0 0 0 4px var(--color-text)"
+                      : "inset 0 0 0 0.5px var(--material-hairline)",
+                  }}
+                />
+              );
+            })}
+
+            <ColorPicker
+              label="Custom tier colour"
+              value={row.color}
+              onChange={(v) =>
+                onUpdate(row.id, { color: normalizeTierColor(v) })
+              }
+              className="w-8 h-8 rounded-full"
+              trigger={
+                <ColorWheelSwatch
+                  size={32}
+                  value={row.color}
+                  active={
+                    !TIER_COLORS.some(
+                      (c) => c.toLowerCase() === row.color.toLowerCase(),
+                    )
+                  }
+                />
+              }
+            />
           </div>
         </div>
       </Modal>

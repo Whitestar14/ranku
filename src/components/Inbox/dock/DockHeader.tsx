@@ -13,8 +13,8 @@ export const DockHeader: React.FC<{
       className="flex flex-1 items-center gap-4 min-w-0 cursor-pointer"
       onClick={onCollapse}
     >
-      <span className="min-w-0 shrink overflow-hidden" title={title}>
-        <PixelText text={title} height={14} className="text-text block" />
+      <span className="min-w-0 flex-1 overflow-hidden" title={title}>
+        <PixelText text={title} height={14} fit className="text-text block" />
       </span>
       {children}
     </div>

@@ -1,5 +1,6 @@
 import React, { useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { AnimatePresence } from "motion/react";
 import { Plus, Layers } from "lucide-react";
 import { TierRow as TierRowData } from "@/types";
 import { useStore } from "@/store/useStore";
@@ -28,10 +29,6 @@ export const TierListView = React.memo(function TierListView() {
   const board = useStore(useShallow(selectActiveBoard));
   const rows = useStore(selectTierRows);
 
-  /* These three read the current rows from the store instead of closing over
-     them. A closure would take a new identity on every row edit, which defeats
-     `TierRow`'s memo and re-renders the whole list — including every item in
-     it — on each keystroke of a label. */
   const handleUpdateRow = useCallback(
     (rowId: string, updates: Partial<TierRowData>) => {
       const { ranks, activeRankId, handleUpdateTierRows } = useStore.getState();
@@ -87,8 +84,6 @@ export const TierListView = React.memo(function TierListView() {
 
   if (!board) return null;
 
-  const itemCount = rows.reduce((sum, row) => sum + row.items.length, 0);
-
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -112,35 +107,26 @@ export const TierListView = React.memo(function TierListView() {
   return (
     <div data-export-board="" className="flex flex-col w-full pb-16">
       <div
-        data-export-hide=""
-        className="flex items-center gap-2 px-1 pb-3 text-caption-1 text-muted"
+        className="border border-hairline overflow-hidden"
+        style={{ borderRadius: board.tierRadius }}
       >
-        <Layers size={13} />
-        <span>
-          {rows.length} {rows.length === 1 ? "tier" : "tiers"} · {itemCount}{" "}
-          {itemCount === 1 ? "item" : "items"} placed
-        </span>
-      </div>
-
-      {/* The sheet is rounded in both spacing modes. Spacing decides the shape
-          of the *artwork* — square and flush, or rounded and guttered — while
-          the sheet is one object on the page and keeps its corners regardless.
-          Clipping here is what gives the first and last row their curve. */}
-      <div className="border border-border rounded-card overflow-hidden squircle">
-        {rows.map((row, index) => (
-          <TierRow
-            key={row.id}
-            row={row}
-            index={index}
-            aspectRatio={board.aspectRatio}
-            height={board.tierRowHeight}
-            spacing={board.tierSpacing}
-            justify={board.justify}
-            onUpdate={handleUpdateRow}
-            onMove={handleMoveRow}
-            onDelete={handleDeleteRow}
-          />
-        ))}
+        <AnimatePresence initial={false}>
+          {rows.map((row, index) => (
+            <TierRow
+              key={row.id}
+              row={row}
+              index={index}
+              aspectRatio={board.aspectRatio}
+              height={board.tierRowHeight}
+              spacing={board.tierSpacing}
+              corners={board.tierCorners}
+              justify={board.justify}
+              onUpdate={handleUpdateRow}
+              onMove={handleMoveRow}
+              onDelete={handleDeleteRow}
+            />
+          ))}
+        </AnimatePresence>
 
         <button
           type="button"

@@ -15,7 +15,6 @@ export const InboxStashGrid = React.memo<{ ctrl: DockCtrl }>(({ ctrl }) => {
     isAllView,
     usedOnBoard,
     selectedItemIds,
-    interactionState,
   } = ctrl;
 
   const onUploadClick = () => ctrl.fileInputRef.current?.click();
@@ -96,7 +95,6 @@ export const InboxStashGrid = React.memo<{ ctrl: DockCtrl }>(({ ctrl }) => {
               scrollerClassName="h-full"
               align="center"
               contentClassName="px-4"
-              paging
             >
               {!isAllView && (
                 <button
@@ -117,10 +115,7 @@ export const InboxStashGrid = React.memo<{ ctrl: DockCtrl }>(({ ctrl }) => {
               <AnimatePresence mode="popLayout" initial={false}>
                 {currentItems.map((item) => {
                   const isUsed = usedOnBoard.has(item.imageSrc);
-                  const isSelected =
-                    selectedItemIds.has(item.id) ||
-                    (interactionState?.type === "inbox" &&
-                      interactionState.itemId === item.id);
+                  const isSelected = selectedItemIds.has(item.id);
 
                   return (
                     <motion.div

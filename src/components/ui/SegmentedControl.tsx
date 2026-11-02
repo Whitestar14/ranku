@@ -45,7 +45,7 @@ export function SegmentedControl<T extends string>({
 
   const activeIndex = Math.max(
     0,
-    options.findIndex((opt) => opt.value === value)
+    options.findIndex((opt) => opt.value === value),
   );
 
   const shape = pill ? "rounded-full" : "rounded-chip";
@@ -68,7 +68,10 @@ export function SegmentedControl<T extends string>({
         >
           <span
             className="block w-full h-full"
-            style={{ ...pillStyle, backgroundColor: "var(--color-control-thumb)" }}
+            style={{
+              ...pillStyle,
+              backgroundColor: "var(--color-control-thumb)",
+            }}
           />
         </motion.span>
       )}
@@ -117,7 +120,10 @@ export function SegmentedControl<T extends string>({
                 aria-hidden
                 layoutId={pillId}
                 className={`absolute inset-0 pointer-events-none ${shape}`}
-                style={{ ...pillStyle, backgroundColor: "var(--color-control-thumb)" }}
+                style={{
+                  ...pillStyle,
+                  backgroundColor: "var(--color-control-thumb)",
+                }}
                 transition={motionPreset.control}
               />
             )}

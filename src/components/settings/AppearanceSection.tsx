@@ -12,7 +12,9 @@ import { ProjectType, Rank } from "@/types";
 import {
   DEFAULT_CARD_GAP,
   DEFAULT_CARD_RADIUS,
+  DEFAULT_TIER_CORNERS,
   DEFAULT_TIER_SPACING,
+  type TierCorners,
   type TierSpacing,
 } from "@/utils/boardStyle";
 import { DEFAULT_ASPECT } from "@/utils/ui";
@@ -82,6 +84,7 @@ interface AppearanceSectionProps {
   borderRadius?: number;
   gridJustify?: "left" | "center" | "right";
   tierSpacing?: TierSpacing;
+  tierCorners?: TierCorners;
   rankBackgroundColor: string;
   onUpdateRank: (updates: Partial<Rank>) => void;
 }
@@ -95,6 +98,7 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
   borderRadius,
   gridJustify,
   tierSpacing = DEFAULT_TIER_SPACING,
+  tierCorners = DEFAULT_TIER_CORNERS,
   rankBackgroundColor,
   onUpdateRank,
 }) => {
@@ -222,8 +226,21 @@ export const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                   onUpdateRank({ tierSpacing: val as TierSpacing })
                 }
                 options={[
-                  { value: "spaced", label: "Padded" },
                   { value: "tight", label: "No Gap" },
+                  { value: "spaced", label: "Padded" },
+                ]}
+              />
+            </Field>
+
+            <Field label="Tier Corners">
+              <SegmentedControl
+                value={tierCorners}
+                onChange={(val) =>
+                  onUpdateRank({ tierCorners: val as TierCorners })
+                }
+                options={[
+                  { value: "rounded", label: "Rounded" },
+                  { value: "square", label: "Square" },
                 ]}
               />
             </Field>

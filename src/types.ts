@@ -62,6 +62,7 @@ export interface Rank {
   cellWidth?: number;
   tierRowHeight?: number;
   tierSpacing?: "spaced" | "tight";
+  tierCorners?: "rounded" | "square";
   borderRadius?: number;
   gap: number;
   gridJustify?: "left" | "center" | "right";

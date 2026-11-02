@@ -7,6 +7,7 @@ import { ScrollRail } from "@/components/ui/ScrollRail";
 import { PopoverMenu } from "@/components/ui/PopoverMenu";
 import { useMagnificationRow } from "@/hooks/useMagnification";
 import { motion as motionPreset } from "@/lib/motion";
+import { useCanHover } from "@/hooks/useCanHover";
 import type { DockCtrl } from "./dock/types";
 
 const chipClass = (active: boolean) =>
@@ -275,20 +276,4 @@ const CollectionChip: React.FC<{
   </MagnifyItem>
 );
 
-/** True only on devices that actually have a hovering pointer. */
-function useCanHover() {
-  const [canHover, setCanHover] = React.useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia("(hover: hover) and (pointer: fine)").matches,
-  );
 
-  React.useEffect(() => {
-    const query = window.matchMedia("(hover: hover) and (pointer: fine)");
-    const onChange = () => setCanHover(query.matches);
-    query.addEventListener("change", onChange);
-    return () => query.removeEventListener("change", onChange);
-  }, []);
-
-  return canHover;
-}

@@ -14,6 +14,7 @@ const GROUPS: { title: string; items: Shortcut[] }[] = [
     items: [
       { keys: ["⌘", "/"], label: "This sheet" },
       { keys: ["⌘", "B"], label: "Toggle settings rail" },
+      { keys: ["⌘", "D"], label: "Open or close the dock" },
       { keys: ["⌘", "Z"], label: "Undo" },
       { keys: ["⇧", "⌘", "Z"], label: "Redo" },
       { keys: ["⌘", "V"], label: "Paste an image" },

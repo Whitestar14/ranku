@@ -23,6 +23,8 @@ import { SettingButtonGroup, SettingRow } from "@/components/ui/SettingCard";
 import { ImportChoiceModal } from "@/components/ImportChoiceModal";
 import { useToast } from "@/context/ToastContext";
 import { useShortcutState } from "@/state/shortcutState";
+import { runActivity } from "@/state/activityState";
+import { useCanHover } from "@/hooks/useCanHover";
 
 /** A pair of keycaps, mirroring the ones inside the cheat sheet. */
 const ShortcutKeys: React.FC<{ keys: string[] }> = ({ keys }) => (
@@ -44,8 +46,14 @@ export const SettingsDockPanel: React.FC<{
   requestConfirm?: (title: string, message: string, onConfirm: () => void) => void;
   onOpenAbout?: () => void;
 }> = ({ requestConfirm, onOpenAbout }) => {
-  const { accent, reduceGlass, autoCloseDesktop, isDark, updateTheme, updatePreferences } =
-    useStore(
+  const {
+    accent,
+    reduceGlass,
+    autoCloseDesktop,
+    isDark,
+    updateTheme,
+    updatePreferences,
+  } = useStore(
       useShallow((s) => ({
         accent: s.theme?.accentColor ?? ACCENT_BLUE_DARK,
         isDark: s.theme?.isDark ?? true,
@@ -56,12 +64,18 @@ export const SettingsDockPanel: React.FC<{
       })),
     );
 
+  const canHover = useCanHover();
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const [isChoiceModalOpen, setIsChoiceModalOpen] = React.useState(false);
   const [pendingState, setPendingState] = React.useState<any>(null);
   const addToast = useToast();
 
-  const handleExportJson = () => exportStateToJson(useStore.getState());
+  const handleExportJson = () =>
+    runActivity(
+      "Backing up",
+      async () => exportStateToJson(useStore.getState()),
+      { successLabel: "Backup saved" },
+    );
 
   const handleImportJson = async (file: File) => {
     const text = await file.text();
@@ -184,7 +198,7 @@ export const SettingsDockPanel: React.FC<{
           >
             Backup Data
           </button>
-          <div className="h-px bg-border/60" />
+          <div className="h-[0.5px]" style={{ backgroundColor: "var(--color-divider)" }} />
           <button
             type="button"
             onClick={() => jsonInputRef.current?.click()}
@@ -192,7 +206,7 @@ export const SettingsDockPanel: React.FC<{
           >
             Restore Data
           </button>
-          <div className="h-px bg-border/60" />
+          <div className="h-[0.5px]" style={{ backgroundColor: "var(--color-divider)" }} />
           <button
             type="button"
             onClick={() => {
@@ -220,20 +234,17 @@ export const SettingsDockPanel: React.FC<{
           App
         </span>
         <SettingButtonGroup className="material-card rounded-card overflow-hidden">
-          {/* The keyboard was the one surface with no visible door: the cheat
-              sheet (⌘/) existed, but only a user who already knew the shortcut
-              could reach it — which is precisely backwards for a
-              discoverability feature. A named row with the keys printed beside
-              it is the door. */}
-          <SettingRow
-            as="button"
-            onClick={() => useShortcutState.getState().toggle()}
-            icon={<Keyboard size={16} />}
-            iconBg="bg-primary/10 text-primary"
-            label="Keyboard shortcuts"
-            sublabel="Every shortcut the app implements"
-            right={<ShortcutKeys keys={["⌘", "/"]} />}
-          />
+          {canHover && (
+            <SettingRow
+              as="button"
+              onClick={() => useShortcutState.getState().toggle()}
+              icon={<Keyboard size={16} />}
+              iconBg="bg-primary/10 text-primary"
+              label="Keyboard shortcuts"
+              sublabel="Every shortcut the app implements"
+              right={<ShortcutKeys keys={["⌘", "/"]} />}
+            />
+          )}
           <SettingRow
             as="button"
             onClick={onOpenAbout}

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export interface ScrollRailProps {
   children: React.ReactNode;
@@ -10,11 +9,8 @@ export interface ScrollRailProps {
   align?: "start" | "center";
   /** Width of the trailing space that keeps the last item clear of the edge. */
   trailingSpace?: string;
-  /** Adds the floating paging pucks */
-  paging?: boolean;
 }
 
-/** How far the trailing/leading content fades into the surface, in px. */
 const EDGE_FADE = 34;
 
 export const ScrollRail: React.FC<ScrollRailProps> = ({
@@ -24,7 +20,6 @@ export const ScrollRail: React.FC<ScrollRailProps> = ({
   contentClassName,
   align = "start",
   trailingSpace = "pr-10",
-  paging = false,
 }) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ start: false, end: false });
@@ -50,7 +45,6 @@ export const ScrollRail: React.FC<ScrollRailProps> = ({
     observer.observe(el);
     Array.from(el.children).forEach((child) => observer.observe(child));
     return () => observer.disconnect();
-    // Re-measure whenever the content changes; the observed nodes may be new.
   }, [measure, children]);
 
   const stops = [
@@ -61,18 +55,6 @@ export const ScrollRail: React.FC<ScrollRailProps> = ({
   ].join(", ");
   const edgeMask = `linear-gradient(to right, ${stops})`;
 
-  const page = (direction: -1 | 1) => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    el.scrollBy({
-      left: direction * Math.max(240, el.clientWidth * 0.8),
-      behavior: "smooth",
-    });
-  };
-
-  /* No `h-full` on the scroller by default: a rail inside a vertical scroller
-     should be as tall as its content. Callers that need it to fill a flex parent
-     pass `scrollerClassName="h-full"`. */
   return (
     <div className={`relative ${className ?? ""}`}>
       <div
@@ -80,50 +62,16 @@ export const ScrollRail: React.FC<ScrollRailProps> = ({
         onScroll={measure}
         className={`w-full overflow-x-auto overflow-y-hidden overscroll-x-contain
                     scrollbar-none touch-pan-x ${scrollerClassName ?? ""}`}
-        style={{
-          maskImage: edgeMask,
-          WebkitMaskImage: edgeMask,
-        }}
+        style={{ maskImage: edgeMask, WebkitMaskImage: edgeMask }}
       >
         <div
-          className={`flex w-max gap-3 pl-1 ${trailingSpace} ${
+          className={`flex w-max gap-3 ${trailingSpace} ${
             align === "center" ? "h-full items-center" : "items-start"
           } ${contentClassName ?? ""}`}
         >
           {children}
         </div>
       </div>
-
-      {paging && edges.start && (
-        <RailPuck label="Scroll left" onClick={() => page(-1)}>
-          <ChevronLeft size={18} strokeWidth={2.5} />
-        </RailPuck>
-      )}
-      {paging && edges.end && (
-        <RailPuck label="Scroll right" onClick={() => page(1)}>
-          <ChevronRight size={18} strokeWidth={2.5} />
-        </RailPuck>
-      )}
     </div>
   );
 };
-
-const RailPuck: React.FC<{
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}> = ({ label, onClick, children }) => (
-  <button
-    type="button"
-    aria-label={label}
-    onClick={onClick}
-    className={`absolute top-1/2 -translate-y-1/2 z-20 grid place-items-center
-                transition-[transform,background-color,color] ease-spring
-                animate-in fade-in duration-200
-                w-9 h-9 rounded-full material text-text hidden md:grid
-                hover:scale-105 active:scale-95
-                ${label === "Scroll left" ? "left-2" : "right-2"}`}
-  >
-    {children}
-  </button>
-);

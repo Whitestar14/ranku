@@ -19,7 +19,7 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = React.memo(
     });
 
     return (
-      <div className="flex flex-col gap-1.5 w-[92px] shrink-0">
+      <div className="flex flex-col gap-1.5 w-24 sm:w-28 lg:w-32 shrink-0">
         <div
           ref={setNodeRef}
           {...attributes}
@@ -46,9 +46,7 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = React.memo(
             }`}
           />
 
-          {/* Always visible. This was an `.affordance` revealed on `.tile:hover`
-              — and a search result is not a `.tile`, so the control was
-              permanently invisible on any device with a real pointer. */}
+
           <button
             type="button"
             aria-label={isAdded ? "Already in library" : `Add ${item.title}`}
@@ -73,9 +71,8 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = React.memo(
           </button>
         </div>
 
-        {/* `min-h` reserves the second line whether or not the title needs it,
-            so the two rows of the grid are the same height. */}
-        <span className="text-caption-1 leading-tight text-muted line-clamp-2 px-0.5 min-h-[2.1em]">
+
+        <span className="h-[2.1em] text-caption-1 leading-tight text-muted line-clamp-2 px-0.5">
           {item.title}
         </span>
       </div>

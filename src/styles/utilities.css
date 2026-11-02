@@ -1,12 +1,9 @@
 @layer utilities {
-  /* ── Interaction ─────────────────────────────────────────────────────── */
-
   .focus-ring {
     outline: 2px solid var(--color-focus-ring);
     outline-offset: 2px;
   }
 
-  /* Guarantees Apple's 44pt minimum target without changing visual size. */
   .touch-target::after {
     content: "";
     position: absolute;
@@ -15,6 +12,29 @@
     width: 44px;
     height: 44px;
     transform: translate(-50%, -50%);
+  }
+
+  .marquee-track {
+    transform: translateX(0);
+  }
+  /* A two-way sweep that pauses at each end reads like a carousel rather than
+     a ticker racing off screen. The animation only starts on hover, so a rail
+     full of long names is completely still at rest. */
+  .marquee-host:hover .marquee-track,
+  .marquee-host:focus-visible .marquee-track {
+    animation: marquee-sweep var(--marquee-duration, 4s) var(--ease-standard)
+      infinite alternate;
+    animation-delay: 350ms;
+  }
+  @keyframes marquee-sweep {
+    0%,
+    6% {
+      transform: translateX(0);
+    }
+    94%,
+    100% {
+      transform: translateX(var(--marquee-distance, 0));
+    }
   }
 
   .affordance {
@@ -38,20 +58,14 @@
     }
   }
 
-  /* ── Drag and drop ───────────────────────────────────────────────────── */
-
-  /* Landing pulse for a tile that just received a drop. */
   .drop-land {
     animation: drop-land 460ms var(--ease-emphasized) forwards;
   }
 
-  /* The target under a drag: the board should look like it is opening up. */
   .drop-target {
     animation: drop-target 900ms var(--ease-standard) infinite;
   }
 
-  /* Dock drop states. Outline rather than box-shadow so the material's own edge
-     highlight is never clobbered. Order matters: active beats hot. */
   .dock-drop-hot {
     outline: 2px solid color-mix(in srgb, var(--color-primary) 40%, transparent);
     outline-offset: 2px;
@@ -61,38 +75,26 @@
     outline-offset: 2px;
   }
 
-  /* ── Tile chrome ─────────────────────────────────────────────────────── */
-
   .squircle {
     corner-shape: initial;
   }
 
-  .tile-number {
+  .tile-rank {
     position: absolute;
-    top: -0.05em;
-    left: 0;
+    top: 6cqi;
+    left: 6cqi;
     z-index: 5;
-    font-size: 35cqi;
-    line-height: 0.8;
-    font-weight: 800;
-    letter-spacing: -0.07em;
-    font-variant-numeric: tabular-nums;
-
-    color: #ffffff;
-    text-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.55),
-      0 2px 12px rgba(0, 0, 0, 0.4);
-
-    -webkit-mask-image:
-      linear-gradient(to bottom, #000 74%, transparent 100%),
-      linear-gradient(to right, #000 72%, transparent 100%);
-    -webkit-mask-composite: source-in;
-    mask-image:
-      linear-gradient(to bottom, #000 74%, transparent 100%),
-      linear-gradient(to right, #000 72%, transparent 100%);
-    mask-composite: intersect;
+    display: block;
+    color: #fff;
     pointer-events: none;
     user-select: none;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6))
+      drop-shadow(0 0 2px rgba(0, 0, 0, 0.4));
+  }
+  .tile-rank svg {
+    display: block;
+    width: auto;
+    height: clamp(18px, 12cqi, 30px);
   }
 
   .img-sheen {
@@ -113,8 +115,6 @@
     );
     animation: sheen 1.3s var(--ease-standard) infinite;
   }
-
-  /* ── Scrollbars ──────────────────────────────────────────────────────── */
 
   .scrollbar-ios,
   .custom-scrollbar {
@@ -156,8 +156,6 @@
     display: none;
   }
 
-  /* ── Safe area ───────────────────────────────────────────────────────── */
-
   .safe-top {
     padding-top: env(safe-area-inset-top, 0px);
   }
@@ -165,17 +163,10 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  /* ── Export ──────────────────────────────────────────────────────────── */
-
-  /* Removes every chrome and artifact from the sheet before exporting. */
   [data-exporting] [data-export-hide] {
     display: none !important;
   }
 }
-
-/* ── Loading effects ─────────────────────────────────────────────────────
- * Outside the layer so app utilities cannot override a critical animation.
- */
 
 .loader-letter {
   color: var(--color-text);
@@ -193,8 +184,7 @@
   width: var(--loader-width);
   height: 16px;
   border: 2px solid color-mix(in srgb, var(--color-text) 26%, transparent);
-  /* The empty cells, drawn as twelve faint blocks rather than a trough, so the
-     bar reads as the same object whether it is full or empty. */
+
   background-image: repeating-linear-gradient(
     90deg,
     var(--color-surface-secondary) 0 var(--loader-cell),
@@ -265,13 +255,11 @@
   .pixel-spin-cell {
     animation: none;
   }
-  /* The centre cell carries the accent when still — it's the natural focal point. */
+
   .pixel-spin-cell[data-center="true"] {
     background-color: var(--spin-lit);
   }
 }
-
-/* ── Layout ────────────────────────────────────────────────────────────── */
 
 .app-viewport {
   height: 100vh;

@@ -28,8 +28,6 @@ export const TierLabel: React.FC<{
     return () => observer.disconnect();
   }, []);
 
-  /* The fallbacks are the desktop block's real size, so the first paint (before
-     the observer has reported) is already the right shape. */
   const fit = useMemo(
     () => fitTierLabel(label, box.width || 100, box.height || 88, cap),
     [label, box.width, box.height, cap],
@@ -48,9 +46,10 @@ export const TierLabel: React.FC<{
           fontSize: fit.fontSize,
           lineHeight: TIER_LABEL_LINE_HEIGHT,
           letterSpacing: "-0.02em",
-          maxWidth: "100%",
+          width: "100%",
           overflowWrap: fit.breaksWords ? "anywhere" : "normal",
           wordBreak: "normal",
+          whiteSpace: "normal",
           display: "-webkit-box",
           WebkitBoxOrient: "vertical",
           WebkitLineClamp: fit.lines,

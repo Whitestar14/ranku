@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Modal } from '@/components/ui/Modal';
-import { Toggle } from '@/components/ui/Toggle';
+import React, { useState } from "react";
+import { Modal } from "@/components/ui/Modal";
+import { ModalActions } from "@/components/ui/ModalActions";
+import { Toggle } from "@/components/ui/Toggle";
 
 interface DuplicateModalProps {
   isOpen: boolean;
@@ -13,51 +14,42 @@ export const DuplicateModal: React.FC<DuplicateModalProps> = ({
   isOpen,
   imageSrc,
   onConfirm,
-  onCancel
+  onCancel,
 }) => {
   const [dontAsk, setDontAsk] = useState(false);
 
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onClose={onCancel} 
-      className="max-w-[270px]"
-      contentClassName="p-0 overflow-hidden"
+    <Modal
+      isOpen={isOpen}
+      onClose={onCancel}
+      variant="action"
+      title="Duplicate Item"
+      description="This image is already in your current project. Add it again?"
+      contentClassName="flex flex-col items-center gap-4 pt-4"
+      footer={
+        <ModalActions
+          actions={[
+            { label: "Cancel", tone: "muted", onClick: onCancel },
+            { label: "Add", onClick: () => onConfirm(dontAsk) },
+          ]}
+        />
+      }
     >
-      <div className="flex flex-col text-center">
-          <div className="p-5 pb-4 flex flex-col items-center">
-              <h3 className="text-body font-semibold text-text mb-1 leading-tight">Duplicate Item</h3>
-              <p className="text-footnote text-muted leading-snug mb-4">
-                  This image is already in your current project. Add it again?
-              </p>
+      {imageSrc && (
+        <div className="w-16 h-20 rounded-control overflow-hidden border border-hairline">
+          <img src={imageSrc} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
 
-              {imageSrc && (
-                  <div className="w-16 h-20 rounded-chip overflow-hidden border border-border/60 relative shadow-sm mb-4">
-                      <img src={imageSrc} className="w-full h-full object-cover" />
-                  </div>
-              )}
-
-              <div className="flex items-center justify-between gap-2 cursor-pointer text-footnote text-text hover:text-text transition-colors select-none w-full" onClick={() => setDontAsk(!dontAsk)}>
-                  <span>Don't ask again</span>
-                  <Toggle checked={dontAsk} onCheckedChange={setDontAsk} />
-              </div>
-          </div>
-
-          <div className="flex border-t border-border/40">
-              <button 
-                  onClick={onCancel}
-                  className="flex-1 py-3 text-body text-primary font-normal hover:bg-hover active:bg-black/5 dark:active:bg-white/5 transition-colors border-r border-border/40 cursor-pointer select-none"
-              >
-                  Cancel
-              </button>
-              <button 
-                  onClick={() => onConfirm(dontAsk)}
-                  className="flex-1 py-3 text-body text-primary font-semibold hover:bg-hover active:bg-black/5 dark:active:bg-white/5 transition-colors cursor-pointer select-none"
-              >
-                  Add
-              </button>
-          </div>
-      </div>
+      <button
+        type="button"
+        onClick={() => setDontAsk(!dontAsk)}
+        className="flex w-full items-center justify-between gap-2 rounded-chip px-1 pt-1
+                   text-footnote text-text select-none"
+      >
+        <span>Don't ask again</span>
+        <Toggle checked={dontAsk} onCheckedChange={setDontAsk} />
+      </button>
     </Modal>
   );
 };

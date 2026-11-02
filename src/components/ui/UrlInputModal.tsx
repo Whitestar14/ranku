@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { Globe } from "lucide-react";
+import { ModalActions } from "@/components/ui/ModalActions";
+import { isValidImageUrl } from "@/utils/url";
 
 interface UrlInputModalProps {
   isOpen: boolean;
@@ -8,29 +9,31 @@ interface UrlInputModalProps {
   onSubmit: (url: string) => void;
 }
 
-/**
- * iOS-style modal for entering an image URL.
- * Replaces all uses of the native prompt() dialog.
- */
 export const UrlInputModal: React.FC<UrlInputModalProps> = ({
   isOpen,
   onClose,
   onSubmit,
 }) => {
   const [url, setUrl] = useState("");
+  const [showError, setShowError] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setUrl("");
-      // Small delay so the modal animation finishes before we focus
-      setTimeout(() => inputRef.current?.focus(), 150);
-    }
+    if (!isOpen) return;
+    setUrl("");
+    setShowError(false);
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 180);
+    return () => window.clearTimeout(timer);
   }, [isOpen]);
 
+  const trimmed = url.trim();
+  const isValid = isValidImageUrl(trimmed);
+
   const handleSubmit = () => {
-    const trimmed = url.trim();
-    if (!trimmed) return;
+    if (!isValid) {
+      setShowError(trimmed.length > 0);
+      return;
+    }
     onSubmit(trimmed);
     onClose();
   };
@@ -39,58 +42,56 @@ export const UrlInputModal: React.FC<UrlInputModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-w-[270px] rounded-card"
-      contentClassName="p-0"
+      variant="action"
+      title="Image URL"
+      description="Paste a direct link to any image."
+      contentClassName="pt-4"
+      footer={
+        <ModalActions
+          actions={[
+            { label: "Cancel", tone: "muted", onClick: onClose },
+            { label: "Add", disabled: !isValid, onClick: handleSubmit },
+          ]}
+        />
+      }
     >
-      <div className="flex flex-col text-center">
-        {/* Header */}
-        <div className="p-5 pb-3">
-          <div className="flex items-center justify-center mb-3">
-            <div className="bg-primary/15 rounded-full p-2.5">
-              <Globe size={20} className="text-primary" />
-            </div>
-          </div>
-          <h3 className="text-body font-semibold text-text mb-1 leading-tight">
-            Image URL
-          </h3>
-          <p className="text-footnote text-muted leading-snug">
-            Paste a direct link to any image
-          </p>
-        </div>
-
-        {/* Input */}
-        <div className="px-5 pb-4">
-          <input
-            ref={inputRef}
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSubmit();
-              if (e.key === "Escape") onClose();
-            }}
-            placeholder="https://..."
-            className="w-full px-4 py-2.5 text-subheadline text-text bg-surface-secondary rounded-control border border-border focus:outline-none focus:border-primary/50 placeholder:text-muted transition-colors"
-          />
-        </div>
-
-        {/* Actions */}
-        <div className="flex border-t border-border">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 text-body text-primary font-normal hover:bg-hover transition-colors border-r border-border"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!url.trim()}
-            className="flex-1 py-3 text-body text-primary font-semibold hover:bg-hover transition-colors disabled:opacity-30"
-          >
-            Add
-          </button>
-        </div>
-      </div>
+      <input
+        ref={inputRef}
+        type="url"
+        inputMode="url"
+        autoCapitalize="none"
+        autoCorrect="off"
+        spellCheck={false}
+        value={url}
+        onChange={(e) => {
+          setUrl(e.target.value);
+          if (showError) setShowError(false);
+        }}
+        onBlur={() => setShowError(trimmed.length > 0 && !isValid)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") handleSubmit();
+        }}
+        placeholder="https://…"
+        aria-label="Image URL"
+        aria-invalid={showError || undefined}
+        aria-describedby={showError ? "image-url-error" : undefined}
+        className={`h-10 w-full rounded-chip border bg-surface-secondary px-3
+                   text-subheadline text-text placeholder:text-faint outline-none
+                   transition-colors focus:bg-surface-elevated ${
+                     showError
+                       ? "border-destructive focus:border-destructive"
+                       : "border-transparent focus:border-border"
+                   }`}
+      />
+      {showError && (
+        <p
+          id="image-url-error"
+          role="alert"
+          className="mt-2 text-caption-1 text-destructive leading-snug"
+        >
+          Enter a full image URL starting with http:// or https://.
+        </p>
+      )}
     </Modal>
   );
 };

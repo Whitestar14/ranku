@@ -15,13 +15,19 @@ export const DEFAULT_TIER_ROW_HEIGHT = 88;
 
 export const TIER_SPACING = { spaced: 8, tight: 0 } as const;
 export type TierSpacing = keyof typeof TIER_SPACING;
-export const DEFAULT_TIER_SPACING: TierSpacing = "spaced";
+export const DEFAULT_TIER_SPACING: TierSpacing = "tight";
 
 export const tierGapFor = (spacing: TierSpacing) => TIER_SPACING[spacing];
 
-/** A tier item's corner radius. Tight rows meet at square edges, by design. */
-export const tierItemRadius = (height: number, spacing: TierSpacing) =>
-  spacing === "tight" ? 0 : Math.min(10, Math.round(height / 8));
+/** Corner treatment for tier artwork. Labels and the sheet itself stay square. */
+export type TierCorners = "rounded" | "square";
+export const DEFAULT_TIER_CORNERS: TierCorners = "square";
+
+export const tierRadiusFor = (corners: TierCorners) =>
+  corners === "square" ? 0 : DEFAULT_CARD_RADIUS;
+
+export const tierItemRadius = (height: number, corners: TierCorners) =>
+  corners === "square" ? 0 : Math.min(12, Math.round(height / 7));
 /** Gutter a board seeds when the Card style is first chosen. */
 export const DEFAULT_CARD_GAP = 8;
 
@@ -50,6 +56,9 @@ export interface BoardStyle {
   tierRowHeight: number;
   /** The resolved tier spacing preset. */
   tierSpacing: TierSpacing;
+  /** Whether the tier sheet and its artwork are rounded or square. */
+  tierCorners: TierCorners;
+  tierRadius: number;
   /** Gutter and inset around a tier row's items, in px. Derived from spacing. */
   tierGap: number;
 }
@@ -91,6 +100,8 @@ export const resolveBoardStyle = (rank: Rank): BoardStyle => {
     tierRowHeight: rank.tierRowHeight ?? DEFAULT_TIER_ROW_HEIGHT,
     tierSpacing: rank.tierSpacing ?? DEFAULT_TIER_SPACING,
     tierGap: tierGapFor(rank.tierSpacing ?? DEFAULT_TIER_SPACING),
+    tierCorners: rank.tierCorners ?? DEFAULT_TIER_CORNERS,
+    tierRadius: tierRadiusFor(rank.tierCorners ?? DEFAULT_TIER_CORNERS),
   };
 };
 

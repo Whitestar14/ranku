@@ -1,5 +1,4 @@
-/* The rail only takes layout space from `md` up; below that it is an overlay, so
-   the dock keeps centring on the full viewport. */
+
 @media (min-width: 768px) {
   :root[data-sidebar-open] {
     --dock-inset-left: var(--rail-width);

@@ -1,4 +1,4 @@
-/* Keyframes et al. */
+
 
 @keyframes spin-ring {
   to {
@@ -6,7 +6,6 @@
   }
 }
 
-/* Status island animation */
 .ring-sweep {
   transform-box: view-box;
   transform-origin: 50% 50%;
@@ -100,7 +99,7 @@
 }
 
 @layer utilities {
-  /* tw overrides */
+
   .animate-in {
     animation: enter var(--tw-duration, var(--duration-standard))
       var(--ease-emphasized) both;

@@ -52,7 +52,7 @@ const AppContent: React.FC = () => {
   // `window.innerWidth` during render, which never reacted to a resize.
   const containerPaddingClass =
     activeRank.type === "tierlist"
-      ? "p-0 md:p-8"
+      ? "p-4 md:p-8"
       : activeRank.style === "card"
         ? "p-8"
         : "p-4";

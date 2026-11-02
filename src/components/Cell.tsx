@@ -2,6 +2,7 @@ import React, { useCallback } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { useShallow } from "zustand/react/shallow";
 import { MoreHorizontal } from "lucide-react";
+import { PixelText } from "@/components/pixel/PixelText";
 import { useStore } from "@/store/useStore";
 import { DEFAULT_ASPECT, aspectToCss } from "@/utils/ui";
 import { UrlInputModal } from "@/components/ui/UrlInputModal";
@@ -39,6 +40,7 @@ export const Cell = React.memo(function Cell({
   const sheetTextColor = getContrastColor(
     useStore((s) => s.ranks[s.activeRankId]?.backgroundColor ?? "transparent"),
   );
+  const isPlacing = useStore((s) => s.placement !== null);
 
   const handleCellClear = useStore((s) => s.handleCellClear);
   const handleUpdateCell = useStore((s) => s.handleUpdateCell);
@@ -163,16 +165,15 @@ export const Cell = React.memo(function Cell({
           <TileEmptyState
             index={index}
             isDraggingAny={tile.isDraggingAny}
+            isPlacementTarget={isPlacing}
             labelColor={sheetTextColor}
-            onOpen={tile.openMenu}
+            onOpen={isPlacing ? tile.place : tile.openMenu}
           />
         )}
 
-        {/* The rank numeral: set large, hung off the corner so the tile clips
-            it, and faded on two axes so it melts into any artwork. */}
         {tile.hasImage && board.showNumbers && (
-          <span aria-hidden className="tile-number">
-            {index + 1}
+          <span aria-hidden className="tile-rank">
+            <PixelText text={String(index + 1)} height={22} />
           </span>
         )}
 

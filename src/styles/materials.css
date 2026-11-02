@@ -1,29 +1,7 @@
-/*
- * Materials — the iOS surface system.
- *
- * Split across two layers, don't merge:
- *   · `@layer components` composes the appearance: tint + grain, and
- *     specular on floating surfaces.
- *   · `@layer utilities` applies the effects: backdrop-filter, box-shadow.
- *     They live here so tailwind utilities can override them per-element.
- *
- * Class roles:
- *   .material / .material-thick   Floating panels (sheets, modals, dock)
- *   .material-chrome              Top bar
- *   .material-thin                Compact controls inside cards
- *   .material-card                List groups
- *   .card-veil                    A tile's veil alone (host draws the edge)
- *   .material-lit                 Adds sheen to an existing material
- *   .rail-elevation               Adds a lift to the rail (mobile only)
- *
- * Sheen policy:
- *   Floating surfaces earn a specular top edge — one per screen reads as
- *   a light source. In-flow surfaces are grain-only — a lit top edge on
- *   every row, tile, or chip is a light source per item.
- */
+
 
 @layer components {
-  /* ── Tier surfaces ───────────────────────────────────────────────────── */
+
 
   .material {
     background-color: var(--material-regular-tint);
@@ -42,18 +20,15 @@
     background-color: var(--material-thin-tint);
     background-image: var(--material-grain);
   }
-  /* NOTE: floating, but flat by rule — a bar is read as one plane, and a
-     vertical sheen across 56px makes the lower edge look like a separate,
-     dirtier surface. */
+
   .material-chrome {
     background-color: var(--material-chrome-tint);
     background-image: var(--material-grain);
   }
 
-  /* ── Modifiers and standalone ────────────────────────────────────────── */
 
-  /* Phone = drawer, desktop = column. Lift only below `md` — at desktop
-     widths a lifted column reads as hovering over the board. */
+
+
   .rail-elevation {
     box-shadow: var(--material-shadow-high);
   }
@@ -63,8 +38,7 @@
     }
   }
 
-  /* Not a tier: the 10px / 160% blur is tuned to a full-bleed image, not
-     to any surface in the system. */
+
   .media-scrim {
     background-color: rgba(0, 0, 0, 0.46);
     color: #ffffff;
@@ -75,10 +49,9 @@
 }
 
 @layer utilities {
-  /* Effects that must beat component-layer appearance. See file header
-     for why they live here. */
 
-  /* ── Tier effects ────────────────────────────────────────────────────── */
+
+
 
   .material {
     -webkit-backdrop-filter: blur(var(--material-regular-blur))
@@ -108,7 +81,7 @@
       var(--material-shadow-high);
   }
 
-  /* NOTE: bottom hairline only — the bar's top is the viewport's top. */
+
   .material-chrome {
     -webkit-backdrop-filter: blur(var(--material-regular-blur))
       saturate(var(--material-saturation));
@@ -117,31 +90,23 @@
     box-shadow: inset 0 -0.5px 0 0 var(--material-hairline);
   }
 
-  /* ── Veils and effect-only rules ─────────────────────────────────────── */
 
-  /* Veil alone — no edge (the host draws it). Grain only: a board is
-     many of these in a row, and a sheen on each turns a gallery into
-     corrugated plastic. */
+
+
   .card-veil {
     background-color: var(--material-card-tint);
     background-image: var(--material-grain);
   }
 
-  /* Adds the sheen back to an existing material. Reserved for the
-     collapsed dock bar — the app's signature object, too small for a
-     thick material and dull without the highlight. */
+
   .material-lit {
     background-image: var(--material-grain), var(--material-specular);
   }
 
-  /* PERF: deliberately no backdrop-filter — sampling once per tile made a
-     40-tile board crawl. The veil is the cheap half of glass and the
-     half that reads as glass. */
+
   .material-card {
     box-shadow: inset 0 0 0 0.5px var(--material-hairline);
   }
 
-  /* NOTE: a material paints `box-shadow`, so `ring-*` on the same element
-     is painted over by the material's edge highlight. Use `outline` (see
-     `.dock-drop-*`) or an inner border when an element needs both. */
+
 }

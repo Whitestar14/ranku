@@ -11,11 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { PopoverMenu } from "@/components/ui/PopoverMenu";
 import { PROJECT_TYPES, projectTypeMeta } from "@/constants/projectTypes";
 import { Rank, ProjectType } from "@/types";
-import {
-  motion as motionPreset,
-  layoutMotion,
-  staggerDelay,
-} from "@/lib/motion";
+import { motion as motionPreset } from "@/lib/motion";
 
 interface LibraryProps {
   isOpen: boolean;
@@ -28,8 +24,6 @@ interface LibraryProps {
   onUpdateRank: (id: string, updates: Partial<Rank>) => void;
 }
 
-/** The projects sheet. The row order is frozen while it is open so renaming a
- *  project cannot send it to the top of the list mid-edit. */
 export const Library: React.FC<LibraryProps> = ({
   isOpen,
   onClose,
@@ -45,42 +39,19 @@ export const Library: React.FC<LibraryProps> = ({
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(
     null,
   );
-  const [frozenOrder, setFrozenOrder] = useState<string[]>([]);
-  const [session, setSession] = useState(0);
-  const [wasOpen, setWasOpen] = useState(isOpen);
-  if (isOpen !== wasOpen) {
-    setWasOpen(isOpen);
-    if (isOpen) setSession((n) => n + 1);
-  }
   const editRef = useRef<HTMLInputElement>(null);
 
-  // Read through a ref so the freeze effect does not depend on `ranks`.
-  const ranksRef = useRef(ranks);
-  ranksRef.current = ranks;
-
-  // Capture the order once per opening, so renaming cannot reorder the list.
   useEffect(() => {
     setEditingId(null);
     setMenu(null);
-    if (!isOpen) return;
-    setFrozenOrder(
-      [...ranksRef.current]
-        .sort((a, b) => b.updatedAt - a.updatedAt)
-        .map((r) => r.id),
-    );
   }, [isOpen]);
 
-  const sorted = useMemo(() => {
-    const byId = new Map(ranks.map((r) => [r.id, r]));
-    const known = frozenOrder
-      .map((id) => byId.get(id))
-      .filter((r): r is Rank => Boolean(r));
-    const seen = new Set(frozenOrder);
-    const added = ranks
-      .filter((r) => !seen.has(r.id))
-      .sort((a, b) => b.updatedAt - a.updatedAt);
-    return [...known, ...added];
-  }, [ranks, frozenOrder]);
+  /* Creation order, newest first. Editing a project changes `updatedAt` on
+     every keystroke; sorting by that made the list reshuffle under the user. */
+  const sorted = useMemo(
+    () => [...ranks].sort((a, b) => b.createdAt - a.createdAt),
+    [ranks],
+  );
 
   const startEditing = (rank: Rank) => {
     setMenu(null);
@@ -103,7 +74,7 @@ export const Library: React.FC<LibraryProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Projects"
-      className="max-w-xl"
+      className="max-w-lg"
       contentClassName="p-0 flex flex-col min-h-0"
       headerAction={
         <motion.button
@@ -119,15 +90,11 @@ export const Library: React.FC<LibraryProps> = ({
       }
     >
       <div className="flex-1 overflow-y-auto scrollbar-ios min-h-0 px-4 pt-4 pb-6">
-        {/*  New project  */}
         <div className="grid grid-cols-3 gap-2">
-          {PROJECT_TYPES.map(({ type, label, hint, icon: Icon, tint }, i) => (
+          {PROJECT_TYPES.map(({ type, label, hint, icon: Icon, tint }) => (
             <motion.button
               key={type}
               type="button"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ ...motionPreset.snappy, delay: i * 0.02 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => {
                 onNewRank(type);
@@ -180,25 +147,17 @@ export const Library: React.FC<LibraryProps> = ({
                 return (
                   <motion.li
                     key={rank.id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
+                    initial={false}
                     exit={{
                       opacity: 0,
                       height: 0,
                       transition: { duration: 0.16, ease: [0.32, 0.72, 0, 1] },
                     }}
-                    transition={{
-                      ...motionPreset.control,
-                      delay: staggerDelay(i),
-                    }}
                     className="group/row relative flex items-stretch
-                               transition-colors duration-150
                                hover:bg-hover focus-within:bg-hover"
                     style={
                       i < sorted.length - 1
-                        ? {
-                            borderBottom: "0.5px solid var(--color-divider)",
-                          }
+                        ? { borderBottom: "0.5px solid var(--color-divider)" }
                         : undefined
                     }
                   >
@@ -245,9 +204,7 @@ export const Library: React.FC<LibraryProps> = ({
                               {rank.title}
                             </span>
                             {isActive && (
-                              <motion.span
-                                layoutId={`active-project-tick-${session}`}
-                                transition={layoutMotion}
+                              <span
                                 className="grid place-items-center w-4 h-4 rounded-full shrink-0"
                                 style={{
                                   backgroundColor: "var(--color-accent-blue)",
@@ -258,7 +215,7 @@ export const Library: React.FC<LibraryProps> = ({
                                   strokeWidth={3.4}
                                   color="#fff"
                                 />
-                              </motion.span>
+                              </span>
                             )}
                           </span>
                         )}

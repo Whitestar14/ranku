@@ -113,7 +113,7 @@ export const BottomDockLayout: React.FC<{
           onExpand={() => ctrl.setIsExpanded(true)}
           onOpenLibrary={() => {
             ctrl.setDockSurface("library");
-            ctrl.setActiveTab("stash");
+            if (ctrl.activeTab === "picker") ctrl.setActiveTab("search");
             ctrl.setIsExpanded(true);
           }}
           onOpenSettings={() => {

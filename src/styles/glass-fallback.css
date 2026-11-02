@@ -1,12 +1,3 @@
-/*
- * Glass fallbacks (reduceGlassEffects).
- *
- * Without `backdrop-filter` to sample a real surface, each material has to
- * become an opaque equivalent that *keeps its role*: bars stay bars, sheets
- * stay sheets, cards stay a step away from their host. Per-token rationale
- * lives with the token in tokens.css.
- */
-
 html[data-reduce-glass] :where(.material, .material-thin) {
   background-color: var(--color-surface);
   box-shadow: inset 0 0 0 0.5px var(--material-hairline);
@@ -17,13 +8,11 @@ html[data-reduce-glass] :where(.material-card) {
   box-shadow: inset 0 0 0 0.5px var(--material-hairline);
 }
 
-/* Veil keeps its tint — it is not a panel. */
 html[data-reduce-glass] :where(.card-veil) {
   background-color: var(--material-card-tint);
   box-shadow: none;
 }
 
-/* Thick sits a step higher; opaque dialogs still need to float. */
 html[data-reduce-glass] :where(.material-thick) {
   background-color: var(--color-surface-elevated);
   box-shadow:
@@ -31,13 +20,11 @@ html[data-reduce-glass] :where(.material-thick) {
     var(--material-shadow-high);
 }
 
-/* Chrome collapses to page bg — the only mapping that works in both themes. */
 html[data-reduce-glass] :where(.material-chrome) {
   background-color: var(--color-background);
   box-shadow: inset 0 -0.5px 0 0 var(--material-hairline);
 }
 
-/* WHY: a translucent thumb has nothing to be translucent over. */
 html[data-reduce-glass] {
   --color-control-thumb: var(--color-surface-elevated);
 }

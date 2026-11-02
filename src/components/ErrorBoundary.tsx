@@ -1,7 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { AlertTriangle, RotateCcw, Database, ChevronLeft } from "lucide-react";
+import { RotateCcw, Database, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { PixelWordmark } from "@/components/app/PixelWordmark";
+import { PixelIcon } from "@/components/pixel/PixelIcon";
 
 interface Props {
   children?: ReactNode;
@@ -61,7 +62,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 color: "var(--color-destructive)",
               }}
             >
-              <AlertTriangle size={26} strokeWidth={2.2} />
+              <PixelIcon name="alert" size={26} />
             </span>
 
             <h1 className="text-title-2 font-semibold text-text tracking-[-0.02em]">
