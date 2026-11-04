@@ -10,7 +10,7 @@ import { useStore } from "@/store/useStore";
 import { useShallow } from "zustand/react/shallow";
 import { useToast } from "@/context/ToastContext";
 import { useImagePresenceSets } from "@/hooks/useImagePresenceSets";
-import { readFileAsDataURL } from "@/utils/imageUtils";
+import { readFileAsDataURL } from "@/utils/imageFile";
 import {
   requestDockExpand,
   DOCK_EXPAND_EVENT,

@@ -19,12 +19,12 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 }) => (
   <div
     className={cn(
-      "flex flex-col items-center justify-center gap-4 py-16 px-6 text-center",
+      "flex flex-col items-center justify-center gap-2 px-6 py-8 text-center sm:gap-4 sm:py-16",
       className,
     )}
   >
     <span
-      className="grid place-items-center w-14 h-14 rounded-card squircle"
+      className="grid place-items-center w-11 h-11 rounded-card squircle sm:w-14 sm:h-14"
       style={{
         backgroundColor: "var(--color-surface-secondary)",
         color: "var(--color-muted)",

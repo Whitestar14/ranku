@@ -183,7 +183,6 @@ export const ListRow = React.memo(function ListRow({
                 src={data.imageSrc!}
                 alt=""
                 decoding="async"
-                colorPlaceholder
                 className="w-full h-full object-cover pointer-events-none"
                 style={tile.imageStyle}
               />

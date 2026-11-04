@@ -1,8 +1,7 @@
 import { get, set, del } from "idb-keyval";
 import { StateStorage } from "zustand/middleware";
 import { GlobalState, TierRow, Rank, ProjectType } from "@/types";
-import { DEFAULT_TIER_COLORS } from "@/constants/tierColors";
-import { normalizeTierColor } from "@/utils/dominantColor";
+import { DEFAULT_TIER_COLORS, normalizeTierColor } from "@/constants/tierColors";
 import { createId } from "@/utils/storeUtils";
 import { logError } from "@/utils/log";
 

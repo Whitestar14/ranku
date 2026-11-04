@@ -3,18 +3,34 @@ import { useShallow } from "zustand/react/shallow";
 import { useStore } from "@/store/useStore";
 import { selectCells } from "@/store/selectors";
 import { Cell } from "@/components/Cell";
-import { DEFAULT_CELL_WIDTH, selectActiveBoard } from "@/utils/boardStyle";
+import {
+  DEFAULT_CELL_WIDTH,
+  resolveBoardBackground,
+  selectActiveBoard,
+} from "@/utils/boardStyle";
+import { getContrastColor } from "@/theme/palettes";
 
 export const GridView = React.memo(function GridView() {
   const board = useStore(useShallow(selectActiveBoard));
   const cells = useStore(selectCells);
   const cols = useStore((s) => s.ranks[s.activeRankId]?.config.cols ?? 3);
   const title = useStore((s) => s.ranks[s.activeRankId]?.title ?? "");
+  const backgroundColor = useStore(
+    (s) => s.ranks[s.activeRankId]?.backgroundColor ?? "transparent"
+  );
+  const isDark = useStore((s) => s.theme?.isDark);
+  const isPlacing = useStore((s) => s.placement !== null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [focusIndex, setFocusIndex] = useState(0);
 
   const count = cells.length;
   const gap = board?.gap ?? 0;
+
+  /* One contrast colour for every empty tile instead of one per tile. */
+  const labelColor = useMemo(
+    () => getContrastColor(resolveBoardBackground(backgroundColor, { isDark })),
+    [backgroundColor, isDark]
+  );
 
   const boardStyle = useMemo<React.CSSProperties>(() => {
     const tile = board?.cellWidth ?? DEFAULT_CELL_WIDTH;
@@ -89,6 +105,10 @@ export const GridView = React.memo(function GridView() {
           cols={cols}
           count={count}
           tabbable={index === Math.min(focusIndex, count - 1)}
+          board={board}
+          title={title}
+          labelColor={labelColor}
+          isPlacing={isPlacing}
           onFocusTile={setFocusIndex}
         />
       ))}

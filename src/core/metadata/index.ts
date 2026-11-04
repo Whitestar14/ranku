@@ -44,8 +44,13 @@ const PROVIDERS: Record<MetadataSource, Provider> = {
   anilist: (q, m, s) => schedule("anilist", () => searchAniList(q, m, s), s),
 };
 
-/** How long the preferred catalogue gets alone before the other is asked too. */
+/** How long the first catalogue gets alone before the other is asked too. */
 const HEDGE_DELAY_MS = 650;
+/* An explicit pick gets a longer head start. A cold AniList request spends
+   most of a second on DNS, TLS and its CORS preflight, so a 650ms hedge let
+   the fallback win often enough that the app kept reporting the chosen
+   catalogue as unavailable. */
+const PREFERRED_HEDGE_DELAY_MS = 1600;
 
 const preferenceToSource = (
   preference: SourcePreference | undefined,
@@ -83,6 +88,7 @@ function raceProviders(
   query: string,
   mode: SearchMode,
   signal: AbortSignal,
+  hedgeDelay: number,
 ): Promise<RaceResult> {
   return new Promise<RaceResult>((resolve, reject) => {
     const controller = new AbortController();
@@ -166,7 +172,7 @@ function raceProviders(
               fail(`${source}: ${describe(error)}`);
             });
         },
-        index === 0 ? 0 : HEDGE_DELAY_MS,
+        index === 0 ? 0 : hedgeDelay,
       );
       timers.add(timer);
     });
@@ -208,7 +214,13 @@ export async function searchMetadata(
 
   const task = (async (): Promise<SearchResponse> => {
     const signal = options.signal ?? new AbortController().signal;
-    const winner = await raceProviders(order, trimmed, mode, signal);
+    const winner = await raceProviders(
+      order,
+      trimmed,
+      mode,
+      signal,
+      preferred ? PREFERRED_HEDGE_DELAY_MS : HEDGE_DELAY_MS,
+    );
     const response: SearchResponse = {
       results: winner.results,
       source: winner.source,

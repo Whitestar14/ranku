@@ -99,7 +99,12 @@ export function reward(source: MetadataSource) {
 
 export function clearProviderCooldowns() {
   (Object.keys(runtime) as MetadataSource[]).forEach((source) => {
-    runtime[source].cooldownUntil = 0;
-    runtime[source].consecutiveFailures = 0;
+    const rt = runtime[source];
+    rt.cooldownUntil = 0;
+    rt.consecutiveFailures = 0;
+    /* A retry should go out now rather than wait out the last request's
+       interval, so the clock starts over with it. */
+    rt.lastStartedAt = 0;
+    rt.chain = Promise.resolve();
   });
 }

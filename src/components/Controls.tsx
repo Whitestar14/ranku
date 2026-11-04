@@ -18,7 +18,7 @@ interface ControlsProps {
   isScrolled?: boolean;
 }
 
-export const Controls: React.FC<ControlsProps> = ({
+export const Controls = React.memo(function Controls({
   projectName,
   onOpenProjects,
   onToggleSidebar,
@@ -26,7 +26,7 @@ export const Controls: React.FC<ControlsProps> = ({
   isSidebarOpen,
   onCreateProject,
   isScrolled = false,
-}) => {
+}: ControlsProps) {
   const {
     phase,
     label: activityLabel,
@@ -125,4 +125,4 @@ export const Controls: React.FC<ControlsProps> = ({
       </div>
     </header>
   );
-};
+});

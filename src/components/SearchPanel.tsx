@@ -139,7 +139,8 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
 
       {degraded && !loading && !error && results.length > 0 && answeredBy && (
         <p className="shrink-0 mb-2 px-1 text-caption-1 text-muted">
-          {SOURCE_SHORT[imageSource]} unavailable · showing {answeredBy}.{" "}
+          {SOURCE_SHORT[imageSource]} was slow, so these are {answeredBy}{" "}
+          results.{" "}
           <button
             type="button"
             onClick={retry}

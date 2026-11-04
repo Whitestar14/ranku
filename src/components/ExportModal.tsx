@@ -4,6 +4,7 @@ import { ImageFormat } from "@/utils/imageUtils";
 import { Copy } from "lucide-react";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 import { Button } from "@/components/ui/Button";
 
 interface ExportModalProps {
@@ -75,9 +76,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       }
     >
       <div className="flex flex-col gap-2">
-        <span className="text-caption-2 font-semibold text-muted uppercase tracking-[0.05em]">
-          Image Format
-        </span>
+        <SectionLabel>Image Format</SectionLabel>
         <SegmentedControl
           value={format}
           onChange={(val) => onFormatChange(val as ImageFormat)}
@@ -89,9 +88,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="text-caption-2 font-semibold text-muted uppercase tracking-[0.05em]">
-          Frame
-        </span>
+        <SectionLabel>Frame</SectionLabel>
         <SegmentedControl
           value={trimPadding ? "trim" : "board"}
           onChange={(val) => onTrimPaddingChange(val === "trim")}
@@ -108,9 +105,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className="text-caption-2 font-semibold text-muted uppercase tracking-[0.05em]">
-          Export Quality
-        </span>
+        <SectionLabel>Export Quality</SectionLabel>
         <SegmentedControl
           value={quality.toString()}
           onChange={(val) => onQualityChange(parseInt(val))}

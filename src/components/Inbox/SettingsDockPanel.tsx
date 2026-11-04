@@ -18,6 +18,7 @@ import {
 import { ACCENT_BLUE_DARK, exportStateToJson } from "@/utils/storage";
 import { isUntouchedWorkspace } from "@/utils/storeUtils";
 import { SettingButtonGroup, SettingRow } from "@/components/ui/SettingCard";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 import { ImportChoiceModal } from "@/components/ImportChoiceModal";
 import { useToast } from "@/context/ToastContext";
 import { useShortcutState } from "@/state/shortcutState";
@@ -126,9 +127,7 @@ export const SettingsDockPanel: React.FC<{
     <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar overscroll-contain p-5 pb-12 flex flex-col gap-6">
       {/* ---------------- Appearance ---------------- */}
       <div className="flex flex-col gap-2 relative">
-        <span className="text-footnote font-medium text-muted uppercase tracking-wide pl-4">
-          Appearance
-        </span>
+        <SectionLabel className="pl-4">Appearance</SectionLabel>
         <SettingButtonGroup className="material-card rounded-card overflow-hidden">
           <SettingRow
             as="div"
@@ -224,9 +223,7 @@ export const SettingsDockPanel: React.FC<{
 
       {/* ---------------- Data Actions ---------------- */}
       <div className="flex flex-col gap-2 relative">
-        <span className="text-footnote font-medium text-muted uppercase tracking-wide pl-4">
-          Data Actions
-        </span>
+        <SectionLabel className="pl-4">Data Actions</SectionLabel>
         <SettingButtonGroup className="material-card rounded-card overflow-hidden">
           <Button
             variant="plain"
@@ -270,9 +267,7 @@ export const SettingsDockPanel: React.FC<{
 
       {/* ---------------- App ---------------- */}
       <div className="flex flex-col gap-2 relative">
-        <span className="text-footnote font-medium text-muted uppercase tracking-wide pl-4">
-          App
-        </span>
+        <SectionLabel className="pl-4">App</SectionLabel>
         <SettingButtonGroup className="material-card rounded-card overflow-hidden">
           {canHover && (
             <SettingRow

@@ -119,7 +119,6 @@ export const TierItem = React.memo(function TierItem({
               alt=""
               decoding="async"
               loading="lazy"
-              colorPlaceholder
               className="absolute inset-0 w-full h-full object-cover pointer-events-none"
               style={tile.imageStyle}
             />

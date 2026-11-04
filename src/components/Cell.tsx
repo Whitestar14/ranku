@@ -1,6 +1,5 @@
 import React, { useCallback } from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { useShallow } from "zustand/react/shallow";
 import { MoreHorizontal } from "lucide-react";
 import { PixelText } from "@/components/pixel/PixelText";
 import { useStore } from "@/store/useStore";
@@ -10,14 +9,12 @@ import { RemoteImage } from "@/components/ui/RemoteImage";
 import { PopoverMenu } from "@/components/ui/PopoverMenu";
 import { AdjustControls, AdjustOverlay } from "@/components/ui/AdjustOverlay";
 import { TileEmptyState } from "./tile/TileEmptyState";
-import { getContrastColor } from "@/theme/palettes";
 import { useTile } from "./tile/useTile";
 import {
   dropTint,
-  resolveBoardBackground,
   restingTileShadow,
-  selectActiveBoard,
   tileStateShadow,
+  type BoardStyle,
 } from "@/utils/boardStyle";
 
 interface CellProps {
@@ -26,6 +23,11 @@ interface CellProps {
   /** Total tiles, so the last row can draw the board's bottom rule. */
   count: number;
   tabbable: boolean;
+  /** Board values are resolved once by the view, not once per tile. */
+  board: BoardStyle;
+  title: string;
+  labelColor: string;
+  isPlacing: boolean;
   onFocusTile: (index: number) => void;
 }
 
@@ -34,21 +36,13 @@ export const Cell = React.memo(function Cell({
   cols,
   count,
   tabbable,
+  board,
+  title,
+  labelColor,
+  isPlacing,
   onFocusTile,
 }: CellProps) {
   const cell = useStore((s) => s.ranks[s.activeRankId]?.cells[index]);
-  const board = useStore(useShallow(selectActiveBoard));
-  const title = useStore((s) => s.ranks[s.activeRankId]?.title ?? "");
-  const isDark = useStore((s) => s.theme?.isDark);
-  const sheetTextColor = getContrastColor(
-    resolveBoardBackground(
-      useStore(
-        (s) => s.ranks[s.activeRankId]?.backgroundColor ?? "transparent",
-      ),
-      { isDark },
-    ),
-  );
-  const isPlacing = useStore((s) => s.placement !== null);
 
   const handleUpdateCell = useStore((s) => s.handleUpdateCell);
   const handleItemTransfer = useStore((s) => s.handleItemTransfer);
@@ -94,7 +88,7 @@ export const Cell = React.memo(function Cell({
     [setTileNodeRef, setDragNodeRef],
   );
 
-  if (!cell || !board) return null;
+  if (!cell) return null;
 
   const resting = restingTileShadow({
     borderless: board.borderless,
@@ -160,7 +154,6 @@ export const Cell = React.memo(function Cell({
               alt=""
               decoding="async"
               loading="lazy"
-              colorPlaceholder
               className="absolute inset-0 w-full h-full object-cover pointer-events-none"
               style={tile.imageStyle}
             />
@@ -170,7 +163,7 @@ export const Cell = React.memo(function Cell({
             index={index}
             isDraggingAny={tile.isDraggingAny}
             isPlacementTarget={isPlacing}
-            labelColor={sheetTextColor}
+            labelColor={labelColor}
             onOpen={isPlacing ? tile.place : tile.openMenu}
           />
         )}

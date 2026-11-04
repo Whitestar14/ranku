@@ -28,7 +28,6 @@ export const BottomDockLayout: React.FC<{
 
   const { setDockSurface, setActiveTab, setIsExpanded } = ctrl;
   const [autoFocusSearch, setAutoFocusSearch] = React.useState(false);
-  const [hasOpened, setHasOpened] = React.useState(false);
   const isExternalDrag = useExternalDragZone();
 
   const { isDockHot, isDndOver, setDockRefs } = useDockDropZone({
@@ -61,9 +60,6 @@ export const BottomDockLayout: React.FC<{
   }, [setDockSurface, setActiveTab, setIsExpanded]);
 
   const open = ctrl.isExpanded;
-  React.useEffect(() => {
-    if (open) setHasOpened(true);
-  }, [open]);
 
   const isDropActive = ctrl.isDragOver || isDndOver;
   /* The panel stays mounted after it collapses so a drag keeps its source
@@ -134,14 +130,11 @@ export const BottomDockLayout: React.FC<{
           }}
         />
 
-        {/* Mounted while open, and while an item is dragged *out* of it: the
-            card in flight lives in this subtree, so unmounting ends the drag. */}
-        {(hasOpened || ctrl.isDraggingFromDock) && (
-          <div
-            className={open ? "contents" : "hidden"}
-            inert={!open || undefined}
-            aria-hidden={!open || undefined}
-          >
+        {/* Mounted only while open, and while an item is dragged out of it.
+            Keeping the hidden library mounted held every decoded poster in
+            memory long after the dock had been closed. */}
+        {(open || ctrl.isDraggingFromDock) && (
+          <div className={open ? "contents" : "hidden"}>
             <DockExpandedContent
               ctrl={ctrl}
               autoFocusSearch={autoFocusSearch}

@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/Button";
 import {
   DEFAULT_TIER_COLORS,
   FALLBACK_TIER_COLOR,
+  normalizeTierColor,
 } from "@/constants/tierColors";
-import { normalizeTierColor } from "@/utils/dominantColor";
 import { newTierRowId } from "@/utils/storeUtils";
 
 /** Next unused single letter, so a new tier is named sensibly by default. */

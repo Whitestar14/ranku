@@ -15,7 +15,7 @@ import { AppearanceSection } from "./settings/AppearanceSection";
 import { VisibilitySection } from "./settings/VisibilitySection";
 
 import { motion as motionPreset } from "@/lib/motion";
-import { resolveBoardStyle } from "@/utils/boardStyle";
+import { selectActiveBoard } from "@/utils/boardStyle";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import {
   useProjectDeletion,
@@ -129,7 +129,23 @@ export const ProjectSettingsSidebar: React.FC<ProjectSettingsSidebarProps> = ({
   onClose,
   requestConfirm,
 }) => {
-  const activeRank = useStore(useShallow((s) => s.ranks[s.activeRankId]));
+  /* Only the fields this panel draws. Subscribing to the whole rank made every
+     cell edit rebuild all three sections. */
+  const project = useStore(
+    useShallow((s) => {
+      const rank = s.ranks[s.activeRankId];
+      return rank
+        ? {
+            id: rank.id,
+            title: rank.title,
+            type: rank.type,
+            config: rank.config,
+            backgroundColor: rank.backgroundColor,
+          }
+        : null;
+    })
+  );
+  const board = useStore(useShallow(selectActiveBoard));
   const rankCount = useStore((s) => Object.keys(s.ranks).length);
   const handleConfigChange = useStore((s) => s.handleConfigChange);
   const handleVisualToggle = useStore((s) => s.handleVisualToggle);
@@ -278,12 +294,28 @@ export const ProjectSettingsSidebar: React.FC<ProjectSettingsSidebarProps> = ({
     window.addEventListener("pointercancel", onCancel);
   };
 
-  const requestProjectDelete = useProjectDeletion(requestConfirm);
+  /* On a phone the rail is a drawer, so deleting the project it describes
+     should hand the screen back to the board. */
+  const requestDeleteThenClose = useCallback<RequestConfirm>(
+    (title, message, action, toggle) => {
+      requestConfirm(
+        title,
+        message,
+        (checked) => {
+          action(checked);
+          if (isMobileViewport()) onClose();
+        },
+        toggle,
+      );
+    },
+    [requestConfirm, onClose],
+  );
 
-  if (!activeRank) return null;
+  const requestProjectDelete = useProjectDeletion(requestDeleteThenClose);
 
-  const { config, type: projectType } = activeRank;
-  const board = resolveBoardStyle(activeRank);
+  if (!project || !board) return null;
+
+  const { config, type: projectType } = project;
 
   const meta = projectTypeMeta(projectType);
   const TypeIcon = meta.icon;
@@ -303,16 +335,16 @@ export const ProjectSettingsSidebar: React.FC<ProjectSettingsSidebarProps> = ({
     );
   };
 
-  const handleDeleteProject = () => requestProjectDelete([activeRank.id]);
+  const handleDeleteProject = () => requestProjectDelete([project.id]);
 
   const startRename = () => {
-    setDraftTitle(activeRank.title);
+    setDraftTitle(project.title);
     setIsRenaming(true);
   };
 
   const commitRename = () => {
     const title = draftTitle.trim();
-    if (title && title !== activeRank.title) updateActiveRank({ title });
+    if (title && title !== project.title) updateActiveRank({ title });
     setIsRenaming(false);
   };
 
@@ -394,7 +426,7 @@ export const ProjectSettingsSidebar: React.FC<ProjectSettingsSidebarProps> = ({
                 ) : (
                   <div className="marquee-host -mx-1.5 flex min-w-0 flex-1 items-center rounded-chip px-1.5">
                     <MarqueeText
-                      text={activeRank.title}
+                      text={project.title}
                       className="min-w-0 flex-1 text-headline font-semibold text-text"
                     />
                   </div>
@@ -420,7 +452,7 @@ export const ProjectSettingsSidebar: React.FC<ProjectSettingsSidebarProps> = ({
               <DimensionsSection
                 projectType={projectType}
                 config={config}
-                cellWidth={activeRank.cellWidth}
+                cellWidth={board.cellWidth}
                 tierRowHeight={board.tierRowHeight}
                 onRowsChange={handleRowsChange}
                 onColsChange={handleColsChange}
@@ -439,7 +471,7 @@ export const ProjectSettingsSidebar: React.FC<ProjectSettingsSidebarProps> = ({
                 gridJustify={board.justify}
                 tierSpacing={board.tierSpacing}
                 tierCorners={board.tierCorners}
-                rankBackgroundColor={activeRank.backgroundColor}
+                rankBackgroundColor={project.backgroundColor}
                 onUpdateRank={updateActiveRank}
               />
 

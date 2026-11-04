@@ -48,9 +48,9 @@ export const InboxStashGrid = React.memo<{ ctrl: DockCtrl }>(({ ctrl }) => {
                 onUploadClick();
               }
             }}
-            className={`m-4 flex-1 flex flex-col items-center justify-center text-muted text-footnote
-                        font-medium select-none border border-dashed border-hairline rounded-card
-                        card-veil p-4 transition-colors
+            className={`m-3 flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center
+                        text-muted text-footnote font-medium select-none border border-dashed
+                        border-hairline rounded-card card-veil p-3 md:m-4 md:p-4 transition-colors
                         ${
                           !isAllView
                             ? "cursor-pointer hover:border-primary hover:bg-hover hover:text-text"
@@ -74,7 +74,7 @@ export const InboxStashGrid = React.memo<{ ctrl: DockCtrl }>(({ ctrl }) => {
               }
               action={
                 !isAllView && (
-                  <span className="text-caption-2 uppercase tracking-widest text-primary/80 font-bold group-hover/grid:text-primary">
+                  <span className="text-caption-1 font-semibold text-primary/80 group-hover/grid:text-primary">
                     Tap to upload
                   </span>
                 )

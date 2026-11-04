@@ -1,15 +1,8 @@
-import { proxyEndpointUrls } from "@/utils/imageProxy";
 import { fetchJson } from "../http";
 import { MetadataError, MediaResult, SearchMode } from "../types";
 
 const ANILIST_ENDPOINT = "https://graphql.anilist.co";
 const PER_PAGE = 20;
-
-/** The Appwrite proxy first, the public API as the fallback route. */
-const ANILIST_ENDPOINTS: string[] = [
-  ...proxyEndpointUrls("/proxy/anilist"),
-  ANILIST_ENDPOINT,
-];
 
 const ANILIST_ANIME_QUERY = `
   query ($search: String, $perPage: Int) {
@@ -118,26 +111,10 @@ export async function searchAniList(
     }),
   };
 
-  // Walk the endpoints; only the last failure is worth reporting, and only when
-  // every route is exhausted.
-  let lastError: unknown = new MetadataError(
-    "AniList is unavailable.",
-    "network"
-  );
-  let payload: AniListPayload | null = null;
-
-  for (const endpoint of ANILIST_ENDPOINTS) {
-    try {
-      payload = (await fetchJson(endpoint, init)) as AniListPayload;
-      break;
-    } catch (error) {
-      if (signal.aborted) throw error;
-      lastError = error;
-    }
-  }
-
-  if (!payload) throw lastError;
-
+  const payload = (await fetchJson(
+    ANILIST_ENDPOINT,
+    init,
+  )) as AniListPayload;
   if (payload.errors?.length) {
     throw new MetadataError(payload.errors[0].message);
   }

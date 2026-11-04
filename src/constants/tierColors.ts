@@ -18,3 +18,15 @@ export const TIER_COLORS = [
 
 /** The neutral a tier falls back to when every palette hue is taken. */
 export const FALLBACK_TIER_COLOR = "#adb5bd";
+
+/** A usable six-digit hex colour, or the fallback when the value is malformed. */
+export const normalizeTierColor = (
+  value: string,
+  fallback = FALLBACK_TIER_COLOR,
+): string => {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(trimmed)) return trimmed;
+  if (/^[0-9a-f]{6}$/.test(trimmed)) return `#${trimmed}`;
+  return fallback;
+};

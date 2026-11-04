@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">
+  <style>
+    .badge { fill: #1c1c1e; }
+    @media (prefers-color-scheme: light) { .badge { fill: #f2f2f7; } }
+  </style>
+  <rect class="badge" width="16" height="16" rx="3.5"/>
+  <g transform="translate(4.5 0)">
+  <path d="M0 4.5h4v1h-4z" fill="#ff375f"/>
+  <path d="M0 5.5h1v1h-1zM4 5.5h1v1h-1z" fill="#ff375f"/>
+  <path d="M0 6.5h1v1h-1zM4 6.5h1v1h-1z" fill="#64d2ff"/>
+  <path d="M0 7.5h4v1h-4z" fill="#64d2ff"/>
+  <path d="M0 8.5h1v1h-1zM2 8.5h1v1h-1z" fill="#bf5af2"/>
+  <path d="M0 9.5h1v1h-1zM3 9.5h1v1h-1z" fill="#bf5af2"/>
+  <path d="M0 10.5h1v1h-1zM4 10.5h1v1h-1z" fill="#bf5af2"/>
+  </g>
+</svg>

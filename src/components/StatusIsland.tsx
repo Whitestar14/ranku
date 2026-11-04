@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useShallow } from "zustand/react/shallow";
-import { Plus, Check } from "lucide-react";
+import { Plus } from "lucide-react";
+import { PixelIcon } from "@/components/pixel/PixelIcon";
 import { useActivityState } from "@/state/activityState";
 import { motion as motionPreset } from "@/lib/motion";
 
@@ -123,11 +124,9 @@ export const StatusIsland: React.FC<{
               {busy ? (
                 <ProgressRing progress={progress} />
               ) : (
-                <Check
-                  size={18}
-                  strokeWidth={2.4}
-                  style={{ color: SUCCESS_COLOR }}
-                />
+                <span style={{ color: SUCCESS_COLOR }}>
+                  <PixelIcon name="check" size={18} />
+                </span>
               )}
             </motion.span>
           )}

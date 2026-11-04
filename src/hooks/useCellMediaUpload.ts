@@ -1,5 +1,5 @@
 import { useRef, useCallback } from "react";
-import { readFileAsDataURL } from "@/utils/imageUtils";
+import { readFileAsDataURL } from "@/utils/imageFile";
 import { useToast } from "@/context/ToastContext";
 
 /**

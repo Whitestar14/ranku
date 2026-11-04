@@ -14,7 +14,7 @@ Everything is stored in your browser.
 
 - Three board layouts of a grid up to 50 x 20, an ordered list, and a tier list
 - A shared image library with collections, multi-select, bulk move/delete, and drag-and-drop in both directions between the library and any board
-- Poster search across AniList and MyAnimeList (Jikan), with automatic fallback when one is down
+- Poster search across MyAnimeList (through Tenrai) and AniList, with automatic fallback when one is down or slow
 - Per-tile crop and adjust
 - Export to PNG or JPG at 1x, 2x or 3x, padded or trimmed to the artwork, or copy the board to the clipboard
 - A blend of iOS-inspired design with some 8-bit aesthetics (I don't own an iOS device and so this is mostly guided by Medium articles and very loosely on Apple's HIG, therefore expect some roughness around the edges)
@@ -24,24 +24,18 @@ Everything is stored in your browser.
 
 ```bash
 pnpm install
-pnpm dev      # http://localhost:5173
+pnpm dev      # http://localhost:3000
 pnpm build
+pnpm test
 ```
 
-The app uses the AniList and Jikan/myAnimeList API for poster search, and a small Flask proxy in `backend/` to get around Jikan CORS and other site URLs when embedding hosted artwork into a canvas export. Search will still work without it, but remote images will appear blank on canvas export.
+The app needs no server and no API keys. Search talks to Tenrai and AniList directly, and both CDNs serve posters with the CORS headers an export needs.
 
-```pwsh
-cd backend
-python -m venv venv && source venv/Scripts/activate   # or venv/bin/activate
-pip install -r requirements.txt
-python app.py                                          # http://localhost:5000
-```
-
-Copy `.env.example` to `.env` and set `VITE_IMAGE_PROXY_URL=http://localhost:5000/proxy/image`.
+The Flask app in `backend/` still holds the old image and metadata proxy. Nothing calls it now, so its routes are parked behind `PROXY_ENABLED` in `backend/app.py`. It stays in the repo for the extra catalogues planned later.
 
 ## Known Issues
 
-As of October 2026, the Jikan API currently doesn't work and is [likely going to be discontinued altogether](https://github.com/jikan-me/jikan-rest/issues/610), so for now the AniList API will be the only available option before a switch to [Tenrai](https://tenrai.org) is implemented as AniList itself is also [currently facing performance issues](https://anilist.co/forum/thread/92613).
+Tenrai is still in beta and its v1 endpoints are interim, so the provider is pinned to the shape those endpoints return today. If a poster fails to load it is retried a couple of times before the tile shows a placeholder, and an export simply leaves that tile blank rather than failing the whole render.
 
 ## Requirements
 

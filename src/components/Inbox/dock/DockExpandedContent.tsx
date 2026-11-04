@@ -91,13 +91,9 @@ export const DockExpandedContent: React.FC<DockExpandedContentProps> = ({
             />
           )}
 
-          {/* Hidden rather than unmounted: the search field and its scroll
-              position should survive a trip to the stash and back. */}
-          <div
-            className={`flex-1 min-h-0 ${
-              ctrl.activeTab === "search" ? "flex flex-col" : "hidden"
-            }`}
-          >
+          {/* One tab at a time. The hidden one used to stay mounted and kept
+              a full row of decoded posters alive behind the other. */}
+          {ctrl.activeTab === "search" && (
             <div className="flex flex-1 min-h-0 flex-col px-4 pt-2 pb-2">
               <SearchPanel
                 query={ctrl.searchQuery}
@@ -111,18 +107,14 @@ export const DockExpandedContent: React.FC<DockExpandedContentProps> = ({
                 onImageSourceChange={ctrl.setSearchSource}
               />
             </div>
-          </div>
+          )}
 
-          <div
-            className={`flex-1 min-h-0 ${
-              ctrl.activeTab === "stash" ? "flex flex-col" : "hidden"
-            }`}
-          >
-            <div className="flex-1 min-h-0 flex flex-col">
+          {ctrl.activeTab === "stash" && (
+            <div className="flex flex-1 min-h-0 flex-col">
               <InboxStashToolbar ctrl={ctrl} />
               <InboxStashGrid ctrl={ctrl} />
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

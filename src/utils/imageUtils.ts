@@ -1,6 +1,13 @@
-import { getFontEmbedCSS, toCanvas } from "html-to-image";
-
 export type ImageFormat = "png" | "jpeg";
+
+type ExportLib = typeof import("html-to-image");
+
+/**
+ * html-to-image is only needed once someone exports, so it is fetched on
+ * demand instead of being parsed with the rest of the app at startup.
+ */
+let exportLib: Promise<ExportLib> | null = null;
+const loadExportLib = () => (exportLib ??= import("html-to-image"));
 
 /** Marks the element that is the board itself, inside the export sheet. */
 export const EXPORT_BOARD_ATTR = "data-export-board";
@@ -15,9 +22,11 @@ let fontEmbedCss: Promise<string> | null = null;
 
 /** The webfont subset is the same every time, so it is fetched only once. */
 const fontEmbed = () =>
-  (fontEmbedCss ??= getFontEmbedCSS(document.body, {
-    preferredFontFormat: "woff2",
-  }).catch(() => ""));
+  (fontEmbedCss ??= loadExportLib()
+    .then(({ getFontEmbedCSS }) =>
+      getFontEmbedCSS(document.body, { preferredFontFormat: "woff2" }),
+    )
+    .catch(() => ""));
 
 export async function withBoardHuggingLayout<T>(
   sheet: HTMLElement,
@@ -90,9 +99,13 @@ async function renderImage(
   format: ImageFormat,
   qualityScale: number,
 ): Promise<Blob> {
+  const { toCanvas } = await loadExportLib();
   const canvas = await toCanvas(node, {
     pixelRatio: pixelRatioFor(node, qualityScale),
-    cacheBust: false,
+    /* Posters are already in the browser cache from the board. A plain fetch
+       can reuse the wrong (uncors) entry, which shows up as a blank or stale
+       tile in the export, so every resource is asked for fresh. */
+    cacheBust: true,
     includeQueryParams: true,
     skipAutoScale: false,
     imagePlaceholder: TRANSPARENT_PIXEL,
@@ -184,52 +197,4 @@ export const copyGrid = async (
   }
 };
 
-export const readFileAsDataURL = (file: File | Blob): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const MAX_DIMENSION = 800;
-        let width = img.width;
-        let height = img.height;
 
-        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-          if (width > height) {
-            height = Math.round((height * MAX_DIMENSION) / width);
-            width = MAX_DIMENSION;
-          } else {
-            width = Math.round((width * MAX_DIMENSION) / height);
-            height = MAX_DIMENSION;
-          }
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          img.onerror = null;
-          img.src = "";
-          resolve(reader.result as string);
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/webp", 0.8);
-        img.onerror = null;
-        img.src = "";
-        canvas.width = 0;
-        canvas.height = 0;
-        resolve(dataUrl);
-      };
-      img.onerror = () => {
-        resolve(reader.result as string);
-      };
-      img.src = reader.result as string;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};

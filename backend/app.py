@@ -13,6 +13,11 @@ from datetime import datetime
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
+# The web app now loads posters and metadata straight from both catalogues, so
+# the proxy routes are parked rather than deleted. Switch this back on when the
+# proxy grows the extra sources it was always meant to cover.
+PROXY_ENABLED = False
+
 # I'll likely implement something more robust later,
 # but for now this simple in-memory cache should help reduce redundant requests during development.
 image_cache = {}
@@ -45,7 +50,7 @@ def _write_json_cache(cache_file, payload):
         print(f'Cache write error: {e}')
 
 
-@app.route('/proxy/anilist', methods=['POST', 'OPTIONS'])
+# Registered at the bottom while PROXY_ENABLED is False.
 def proxy_anilist():
     """Forward a GraphQL query to AniList, with caching and rate discipline."""
     if request.method == 'OPTIONS':
@@ -108,7 +113,6 @@ def proxy_anilist():
 
     return jsonify(data), response.status_code
 
-@app.route('/proxy/image', methods=['GET'])
 def proxy_image():
     """Fetch an image from a URL and return it with CORS headers"""
     image_url = request.args.get('url')
@@ -180,6 +184,13 @@ def proxy_image():
     except Exception as e:
         print(f'Proxy error: {e}')
         return jsonify({'error': 'Internal server error'}), 500
+
+if PROXY_ENABLED:
+    app.add_url_rule(
+        '/proxy/anilist', view_func=proxy_anilist, methods=['POST', 'OPTIONS']
+    )
+    app.add_url_rule('/proxy/image', view_func=proxy_image, methods=['GET'])
+
 
 @app.route('/health', methods=['GET'])
 def health():

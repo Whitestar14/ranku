@@ -10,8 +10,8 @@ import {
   emptyImageActions,
   filledImageActions,
 } from "@/components/ui/imageActions";
-import { copyImageToClipboard, downloadImage } from "@/utils/imageProxy";
-import { readFileAsDataURL } from "@/utils/imageUtils";
+import { copyImageToClipboard, downloadImage } from "@/utils/imageTransfer";
+import { readFileAsDataURL } from "@/utils/imageFile";
 import { useToast } from "@/context/ToastContext";
 import { DRAG_TYPE, DROP_TYPE } from "@/constants/drag";
 

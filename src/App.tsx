@@ -62,6 +62,23 @@ const AppContent: React.FC = () => {
   const theme = useStore((s) => s.theme);
   const requestProjectDelete = useProjectDeletion(ctrl.confirmAction);
 
+  const rankList = React.useMemo(() => Object.values(ctrl.ranks), [ctrl.ranks]);
+
+  /* Stable so the memoised chrome does not repaint on every board edit. */
+  const { setIsProjectsOpen, setIsSidebarOpen } = ctrl;
+  const openProjects = React.useCallback(
+    () => setIsProjectsOpen(true),
+    [setIsProjectsOpen],
+  );
+  const closeProjects = React.useCallback(
+    () => setIsProjectsOpen(false),
+    [setIsProjectsOpen],
+  );
+  const closeSidebar = React.useCallback(
+    () => setIsSidebarOpen(false),
+    [setIsSidebarOpen],
+  );
+
   if (!activeRank) return <LoadingScreen />;
 
   const sheetColor = resolveBoardBackground(activeRank.backgroundColor, {
@@ -85,7 +102,7 @@ const AppContent: React.FC = () => {
         <Controls
           projectName={activeRank.title}
           isScrolled={isScrolled}
-          onOpenProjects={() => ctrl.setIsProjectsOpen(true)}
+          onOpenProjects={openProjects}
           onToggleSidebar={ctrl.toggleSidebar}
           onOpenExport={ctrl.openExport}
           isSidebarOpen={ctrl.isSidebarOpen}
@@ -106,8 +123,8 @@ const AppContent: React.FC = () => {
 
         <ProjectsModal
           isOpen={ctrl.isProjectsOpen}
-          onClose={() => ctrl.setIsProjectsOpen(false)}
-          ranks={Object.values(ctrl.ranks)}
+          onClose={closeProjects}
+          ranks={rankList}
           activeRankId={ctrl.activeRankId}
           onSelectRank={ctrl.setActiveRankId}
           onDeleteRank={(id) => requestProjectDelete([id])}
@@ -121,7 +138,7 @@ const AppContent: React.FC = () => {
         <div className="flex flex-1 overflow-hidden pt-14">
           <ProjectSettingsSidebar
             isOpen={ctrl.isSidebarOpen}
-            onClose={() => ctrl.setIsSidebarOpen(false)}
+            onClose={closeSidebar}
             requestConfirm={ctrl.confirmAction}
           />
 

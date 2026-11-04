@@ -18,6 +18,7 @@ import { pixelIcon } from "./pixel/PixelIcon";
 import { SwatchGroup, type SwatchOption } from "./ui/SwatchGroup";
 import { TierItem, TierRail } from "./TierItem";
 import { TierLabel } from "./tier/TierLabel";
+import { SectionLabel } from "./ui/SectionLabel";
 import {
   DEFAULT_TIER_ROW_HEIGHT,
   DEFAULT_TIER_SPACING,
@@ -26,8 +27,7 @@ import {
   type TierCorners,
   type TierSpacing,
 } from "@/utils/boardStyle";
-import { TIER_COLORS } from "@/constants/tierColors";
-import { normalizeTierColor } from "@/utils/dominantColor";
+import { TIER_COLORS, normalizeTierColor } from "@/constants/tierColors";
 import { getContrastColor } from "@/theme/palettes";
 import { layoutMotion } from "@/lib/motion";
 
@@ -301,11 +301,8 @@ export const TierRow = React.memo(function TierRow({
               />
             </div>
             <div className="flex-1 min-w-0">
-              <label
-                htmlFor={`tier-label-${row.id}`}
-                className="block text-caption-2 font-semibold text-muted uppercase tracking-[0.04em] mb-1.5"
-              >
-                Tier Name
+              <label htmlFor={`tier-label-${row.id}`}>
+                <SectionLabel className="mb-1.5">Tier Name</SectionLabel>
               </label>
               <Input
                 id={`tier-label-${row.id}`}
@@ -319,9 +316,7 @@ export const TierRow = React.memo(function TierRow({
           </div>
 
           <div>
-            <span className="block text-caption-2 font-semibold text-muted uppercase tracking-[0.04em] mb-2">
-              Colour
-            </span>
+            <SectionLabel className="mb-2">Colour</SectionLabel>
             <SwatchGroup
               ariaLabel="Tier colour"
               options={TIER_SWATCH_OPTIONS}

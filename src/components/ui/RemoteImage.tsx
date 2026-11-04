@@ -1,90 +1,25 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  imageCandidates,
-  originOf,
-  originPreference,
-  rememberOriginPreference,
-  reportProxyFailure,
-  reportProxySuccess,
-} from "@/utils/imageProxy";
-import { dominantColor, subscribeDominantColor } from "@/utils/dominantColor";
-import { boundCache } from "@/utils/lru";
-import { imageKey } from "@/utils/imageKey";
+import React, { useEffect, useRef, useState } from "react";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
+import { imageKey } from "@/utils/imageKey";
 
 export interface RemoteImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string;
-  /** Rendered when every candidate fails. */
+  /** Rendered when every attempt fails. */
   fallback?: React.ReactNode;
   /** Suppress the loading placeholder (for places that draw their own). */
   noPlaceholder?: boolean;
-  /**
-   * Sample the image and tint its loading sheen. Decoding a second copy for a
-   * colour is only worth it on large board tiles, not dock or search thumbnails.
-   */
-  colorPlaceholder?: boolean;
 }
 
-const originIndex = originPreference;
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1_200;
 
-/** How long a proxy gets before the CDN is asked directly. */
-const PROXY_TIMEOUT_MS = 2_200;
-const DIRECT_TIMEOUT_MS = 12_000;
+type Status = "loading" | "loaded" | "failed";
 
-const CACHE_LIMIT = 400;
-const resolvedSrc = new Map<string, string>();
-const loadedSrc = new Set<string>();
-const failedSrc = new Map<string, number>();
-
-/** A failure is a hint, not a verdict: remounting after this retries. */
-const FAILURE_TTL = 20_000;
-const RETRY_AFTER = 15_000;
-
-const cacheCandidateUrl = (key: string, url: string) => {
-  resolvedSrc.set(key, url);
-  boundCache(resolvedSrc, CACHE_LIMIT);
-};
-
-const cacheLoaded = (key: string) => {
-  loadedSrc.add(key);
-  boundCache(loadedSrc, CACHE_LIMIT);
-};
-
-const cacheFailed = (key: string) => {
-  failedSrc.set(key, Date.now());
-  boundCache(failedSrc, CACHE_LIMIT);
-};
-
-const failedRecently = (key: string) => {
-  const at = failedSrc.get(key);
-  if (at === undefined) return false;
-  if (Date.now() - at > FAILURE_TTL) {
-    failedSrc.delete(key);
-    return false;
-  }
-  return true;
-};
-
-const preferredIndex = (
-  key: string,
-  candidates: ReturnType<typeof imageCandidates>,
-  origin: string | null,
-) => {
-  const cached = resolvedSrc.get(key);
-  if (cached) {
-    const found = candidates.findIndex((candidate) => candidate.url === cached);
-    if (found >= 0) return found;
-  }
-  const remembered = origin ? originIndex.get(origin) : undefined;
-  if (remembered) {
-    const found = candidates.findIndex(
-      (candidate) => candidate.key === remembered,
-    );
-    if (found >= 0) return found;
-  }
-  return 0;
-};
-
+/**
+ * A plain image with a loading sheen, a remount-based retry, and a fallback.
+ * The browser owns caching and decoding. There is no custom failure cache, so
+ * an image that failed once gets another chance on its next mount.
+ */
 export const RemoteImage: React.FC<RemoteImageProps> = ({
   src,
   fallback,
@@ -92,86 +27,37 @@ export const RemoteImage: React.FC<RemoteImageProps> = ({
   onLoad,
   className = "",
   noPlaceholder = false,
-  colorPlaceholder = false,
   style,
   ...props
 }) => {
-  const key = useMemo(() => imageKey(src), [src]);
-  const candidates = useMemo(() => imageCandidates(src), [src]);
-  const origin = useMemo(() => (src ? originOf(src) : null), [src]);
-  const startIndex = useMemo(
-    () => preferredIndex(key, candidates, origin),
-    [key, candidates, origin],
-  );
-
-  const [index, setIndex] = useState(startIndex);
-  const [failed, setFailed] = useState(() => failedRecently(key));
-  const [loaded, setLoaded] = useState(() => loadedSrc.has(key));
-  const [placeholderColor, setPlaceholderColor] = useState<string | undefined>(
-    () =>
-      colorPlaceholder && !loadedSrc.has(key) ? dominantColor(src) : undefined,
-  );
-  const imgRef = useRef<HTMLImageElement>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [status, setStatus] = useState<Status>("loading");
+  const timer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    setIndex(startIndex);
-    setFailed(failedRecently(key));
-    setLoaded(loadedSrc.has(key));
-  }, [key, startIndex]);
+    setAttempt(0);
+    setStatus("loading");
+  }, [src]);
 
   useEffect(() => {
-    if (!colorPlaceholder || !src || loadedSrc.has(key)) {
-      setPlaceholderColor(undefined);
+    return () => {
+      if (timer.current !== undefined) window.clearTimeout(timer.current);
+    };
+  }, []);
+
+  const retry = () => {
+    if (timer.current !== undefined) window.clearTimeout(timer.current);
+    if (attempt + 1 >= MAX_ATTEMPTS) {
+      setStatus("failed");
       return;
     }
-    setPlaceholderColor(dominantColor(src));
-    return subscribeDominantColor(src, setPlaceholderColor);
-  }, [colorPlaceholder, key, src]);
+    timer.current = window.setTimeout(() => {
+      setAttempt((value) => value + 1);
+      setStatus("loading");
+    }, RETRY_DELAY_MS);
+  };
 
-  useEffect(() => {
-    const img = imgRef.current;
-    if (img && img.complete && img.naturalWidth > 0) {
-      cacheLoaded(key);
-      setLoaded(true);
-    }
-  }, [key, candidates]);
-
-  const candidate = candidates[index];
-
-  const advance = useCallback(() => {
-    if (index + 1 < candidates.length) setIndex(index + 1);
-    else {
-      cacheFailed(key);
-      setFailed(true);
-    }
-  }, [index, candidates.length, key]);
-
-  /* Give a transient failure a second chance without needing a reload. */
-  useEffect(() => {
-    if (!failed) return;
-    const timer = window.setTimeout(() => {
-      failedSrc.delete(key);
-      setIndex(startIndex);
-      setFailed(false);
-    }, RETRY_AFTER);
-    return () => window.clearTimeout(timer);
-  }, [failed, key, startIndex]);
-
-  /* A dead proxy answers only after the browser gives up, so give every
-     candidate a deadline of its own and move on. */
-  useEffect(() => {
-    if (loaded || failed || !candidate) return;
-    const timer = window.setTimeout(
-      () => {
-        if (candidate.viaProxy) reportProxyFailure(candidate.key);
-        advance();
-      },
-      candidate.viaProxy ? PROXY_TIMEOUT_MS : DIRECT_TIMEOUT_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [candidate, index, candidates.length, key, loaded, failed, advance]);
-
-  if (!src || failed || !candidate) {
+  if (!src || status === "failed") {
     if (fallback !== undefined) return <>{fallback}</>;
     return (
       <span
@@ -193,38 +79,26 @@ export const RemoteImage: React.FC<RemoteImageProps> = ({
     <span className={`relative block overflow-hidden ${className}`}>
       <img
         {...props}
-        ref={imgRef}
-        src={candidate.url}
+        key={`${imageKey(src)}:${attempt}`}
+        src={src}
         draggable={false}
         referrerPolicy="no-referrer"
         className="absolute inset-0 h-full w-full object-cover pointer-events-none transition-opacity duration-300 ease-standard"
         style={{
           ...style,
-          opacity: loaded ? (style?.opacity ?? 1) : 0,
+          opacity: status === "loaded" ? (style?.opacity ?? 1) : 0,
         }}
         onLoad={(event) => {
-          if (origin) rememberOriginPreference(origin, candidate.key);
-          if (candidate.viaProxy) reportProxySuccess(candidate.key);
-          if (candidates.length > 1) cacheCandidateUrl(key, candidate.url);
-          cacheLoaded(key);
-          setLoaded(true);
+          setStatus("loaded");
           onLoad?.(event);
         }}
         onError={(event) => {
-          if (candidate.viaProxy) reportProxyFailure(candidate.key);
-          advance();
-          onError?.(event);
+          retry();
+          if (attempt + 1 >= MAX_ATTEMPTS) onError?.(event);
         }}
       />
-      {!loaded && !noPlaceholder && (
-        <span
-          aria-hidden
-          data-export-hide=""
-          className="img-sheen"
-          style={
-            placeholderColor ? { backgroundColor: placeholderColor } : undefined
-          }
-        />
+      {status !== "loaded" && !noPlaceholder && (
+        <span aria-hidden data-export-hide="" className="img-sheen" />
       )}
     </span>
   );

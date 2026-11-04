@@ -11,6 +11,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { PopoverMenu } from "@/components/ui/PopoverMenu";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 import { PROJECT_TYPES, projectTypeMeta } from "@/constants/projectTypes";
 import { Rank, ProjectType } from "@/types";
 
@@ -49,17 +50,6 @@ function formatProjectDate(timestamp: number): string {
     year: "numeric",
   });
 }
-
-const SectionLabel: React.FC<{
-  children: React.ReactNode;
-  className?: string;
-}> = ({ children, className = "" }) => (
-  <div className={`flex items-center gap-3 ${className}`}>
-    <span className="text-caption-1 font-semibold text-muted shrink-0">
-      {children}
-    </span>
-  </div>
-);
 
 export const ProjectsModal: React.FC<ProjectsModalProps> = ({
   isOpen,

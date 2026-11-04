@@ -2,6 +2,7 @@ import React from "react";
 import { Modal } from "@/components/ui/Modal";
 import { PixelText } from "@/components/pixel/PixelText";
 import { isPixelText } from "@/components/pixel/pixelFont";
+import { SectionLabel } from "@/components/ui/SectionLabel";
 
 interface Shortcut {
   keys: string[];
@@ -86,9 +87,9 @@ export const ShortcutsSheet: React.FC<{
     <div className="px-4 py-4 flex flex-col gap-6">
       {GROUPS.map((group) => (
         <section key={group.title} className="flex flex-col gap-2">
-          <h3 className="px-1 text-caption-2 font-semibold uppercase tracking-[0.06em] text-faint">
+          <SectionLabel as="h3" className="px-1">
             {group.title}
-          </h3>
+          </SectionLabel>
           <div className="material-card rounded-card overflow-hidden divide-y divide-hairline">
             {group.items.map((item) => (
               <div
