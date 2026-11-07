@@ -5,6 +5,7 @@ import { usePanZoom } from "@/hooks/usePanZoom";
 import { useCellInteraction } from "@/hooks/useCellInteraction";
 import { useCellMediaUpload } from "@/hooks/useCellMediaUpload";
 import { useDropPulse, useIsDragging } from "@/state/dragState";
+import { useAdjustState } from "@/state/adjustState";
 import type { PopoverAction } from "@/components/ui/PopoverMenu";
 import {
   emptyImageActions,
@@ -33,18 +34,6 @@ export interface TileAdapter {
   filename: string;
 }
 
-const ADJUST_HINT_KEY = "ranku:adjust-hint-shown";
-
-const markAdjustHintSeen = (): boolean => {
-  try {
-    if (sessionStorage.getItem(ADJUST_HINT_KEY)) return false;
-    sessionStorage.setItem(ADJUST_HINT_KEY, "1");
-  } catch {
-    // Private mode can refuse storage; showing the hint again is harmless.
-  }
-  return true;
-};
-
 const parsePlacement = (item: CellData | undefined) => ({
   zoom: item?.zoom,
   posX: item?.objectPosition ? parseInt(item.objectPosition.split(" ")[0]) : 50,
@@ -70,6 +59,7 @@ export function useTile(adapter: TileAdapter) {
   } = adapter;
 
   const addToast = useToast();
+  const openAdjustSession = useAdjustState((state) => state.open);
   const tileRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -92,33 +82,24 @@ export function useTile(adapter: TileAdapter) {
     },
   );
 
-  const {
-    isAdjusting,
-    imageStyle,
-    handlePointerDown,
-    handlePointerMove,
-    handlePointerUp,
-    handlePointerCancel,
-    startAdjusting,
-    stopAdjusting,
-    saveAdjustments,
-  } = usePanZoom(
-    parsePlacement(item),
-    imageRef,
-    (state) =>
-      update({
-        zoom: state.zoom,
-        objectPosition: `${state.posX}% ${state.posY}%`,
-      }),
-    tileRef,
-  );
+  const { imageStyle } = usePanZoom(parsePlacement(item), imageRef);
 
-  const beginAdjust = useCallback(() => {
-    if (markAdjustHintSeen()) {
-      addToast("info", "Drag to reposition and scroll to zoom");
-    }
-    startAdjusting();
-  }, [addToast, startAdjusting]);
+  const openCrop = useCallback(() => {
+    if (!item?.imageSrc) return;
+    const placement = parsePlacement(item);
+    openAdjustSession({
+      imageSrc: item.imageSrc,
+      aspectRatio,
+      zoom: placement.zoom ?? 1,
+      posX: placement.posX,
+      posY: placement.posY,
+      onSave: ({ zoom, posX, posY }) =>
+        update({
+          zoom,
+          objectPosition: `${Math.round(posX)}% ${Math.round(posY)}%`,
+        }),
+    });
+  }, [item, aspectRatio, update, openAdjustSession]);
 
   const hasImage = !!item?.imageSrc;
   const dropId =
@@ -180,7 +161,7 @@ export function useTile(adapter: TileAdapter) {
     ],
   );
 
-  const dragDisabled = isAdjusting || (!hasImage && !draggableWhenEmpty);
+  const dragDisabled = !hasImage && !draggableWhenEmpty;
 
   const wasSelected = useRef(isSelected);
   useEffect(() => {
@@ -199,8 +180,12 @@ export function useTile(adapter: TileAdapter) {
     const track = (e: PointerEvent) => {
       lastPointerType.current = e.pointerType || "mouse";
     };
-    node.addEventListener("pointerdown", track, { capture: true, passive: true });
-    return () => node.removeEventListener("pointerdown", track, { capture: true });
+    node.addEventListener("pointerdown", track, {
+      capture: true,
+      passive: true,
+    });
+    return () =>
+      node.removeEventListener("pointerdown", track, { capture: true });
   }, []);
 
   const openMenu = useCallback(
@@ -211,8 +196,6 @@ export function useTile(adapter: TileAdapter) {
         if (e.button !== 2 || lastPointerType.current === "touch") return;
       }
       e.preventDefault();
-      // Adjust mode owns the surface; the menu is deliberately unavailable.
-      if (isAdjusting) return;
       if (anchorTo) {
         const rect = anchorTo.getBoundingClientRect();
         setAnchor({ x: rect.left + rect.width / 2, y: rect.bottom + 4 });
@@ -225,7 +208,7 @@ export function useTile(adapter: TileAdapter) {
       }
       setIsMenuOpen(true);
     },
-    [isAdjusting],
+    [],
   );
 
   const closeMenu = useCallback(() => setIsMenuOpen(false), []);
@@ -233,19 +216,18 @@ export function useTile(adapter: TileAdapter) {
   const activate = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (isAdjusting) return;
       handleInteraction(e.clientX, e.clientY, e.target as HTMLElement);
     },
-    [handleInteraction, isAdjusting],
+    [handleInteraction],
   );
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
-      if (!hasImage || isAdjusting) return;
+      if (!hasImage) return;
       e.stopPropagation();
       triggerPicker();
     },
-    [hasImage, isAdjusting, triggerPicker],
+    [hasImage, triggerPicker],
   );
 
   const handleDownload = useCallback(() => {
@@ -287,7 +269,7 @@ export function useTile(adapter: TileAdapter) {
     () =>
       hasImage
         ? filledImageActions({
-            onAdjust: beginAdjust,
+            onAdjust: openCrop,
             onDownload: handleDownload,
             onCopy: handleCopy,
             onReturnToLibrary: returnToLibrary,
@@ -300,8 +282,8 @@ export function useTile(adapter: TileAdapter) {
           }),
     [
       hasImage,
+      openCrop,
       triggerPicker,
-      beginAdjust,
       handleDownload,
       handleCopy,
       returnToLibrary,
@@ -332,17 +314,7 @@ export function useTile(adapter: TileAdapter) {
     dragData,
     dragDisabled,
 
-    isAdjusting,
     imageStyle,
-    adjust: {
-      start: beginAdjust,
-      stop: stopAdjusting,
-      save: saveAdjustments,
-      handlePointerDown,
-      handlePointerMove,
-      handlePointerUp,
-      handlePointerCancel,
-    },
 
     isMenuOpen,
     anchor,

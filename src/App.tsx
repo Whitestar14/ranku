@@ -2,6 +2,7 @@ import React, { Suspense, useEffect, useState } from "react";
 import { AnimatePresence, motion, useTransform } from "motion/react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Controls } from "@/components/Controls";
+import { AdjustStudio } from "@/components/ui/AdjustStudio";
 import { ProjectSettingsSidebar } from "@/components/ProjectSettingsSidebar";
 import { ProjectsModal } from "@/components/ProjectsModal";
 import { ShortcutsSheet } from "@/components/ShortcutsSheet";
@@ -134,6 +135,7 @@ const AppContent: React.FC = () => {
         />
 
         <DuplicateModalHost />
+        <AdjustStudio />
 
         <div className="flex flex-1 overflow-hidden pt-14">
           <ProjectSettingsSidebar

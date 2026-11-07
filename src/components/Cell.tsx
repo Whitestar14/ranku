@@ -7,7 +7,6 @@ import { DEFAULT_ASPECT, aspectToCss } from "@/utils/ui";
 import { UrlInputModal } from "@/components/ui/UrlInputModal";
 import { RemoteImage } from "@/components/ui/RemoteImage";
 import { PopoverMenu } from "@/components/ui/PopoverMenu";
-import { AdjustControls, AdjustOverlay } from "@/components/ui/AdjustOverlay";
 import { TileEmptyState } from "./tile/TileEmptyState";
 import { useTile } from "./tile/useTile";
 import {
@@ -122,7 +121,7 @@ export const Cell = React.memo(function Cell({
       data-cell-index={index}
       className={`tile item-enter group/tile relative select-none outline-none [container-type:inline-size] ${
         tile.hasImage ? "touch-none" : ""
-      } ${isDragging ? "z-30 opacity-25" : tile.isAdjusting ? "z-30" : "z-0"}`}
+      } ${isDragging ? "z-30 opacity-25" : "z-0"}`}
       style={
         {
           aspectRatio: aspectToCss(board.aspectRatio),
@@ -174,7 +173,7 @@ export const Cell = React.memo(function Cell({
           </span>
         )}
 
-        {tile.hasImage && !tile.isAdjusting && (
+        {tile.hasImage && (
           <button
             type="button"
             data-export-hide=""
@@ -189,15 +188,6 @@ export const Cell = React.memo(function Cell({
           >
             <MoreHorizontal size={14} strokeWidth={2.5} />
           </button>
-        )}
-
-        {tile.isAdjusting && (
-          <AdjustOverlay
-            onPointerDown={tile.adjust.handlePointerDown}
-            onPointerMove={tile.adjust.handlePointerMove}
-            onPointerUp={tile.adjust.handlePointerUp}
-            onPointerCancel={tile.adjust.handlePointerCancel}
-          />
         )}
 
         {(tile.isOver || tile.isFileDragOver) && (
@@ -219,17 +209,6 @@ export const Cell = React.memo(function Cell({
           />
         )}
       </div>
-
-      {tile.isAdjusting && (
-        <AdjustControls
-          className="absolute left-1/2 -top-4 z-40 -translate-x-1/2"
-          onCancel={tile.adjust.stop}
-          onSave={() => {
-            tile.adjust.save();
-            tile.clearInteraction();
-          }}
-        />
-      )}
 
       <input
         ref={tile.fileInputRef}

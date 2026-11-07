@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 
 export interface ImageActionHandlers {
-  /** Enter the pan/zoom adjust mode. */
+  /** Open the crop studio for this artwork. */
   onAdjust?: () => void;
   /** Save the image to the device. */
   onDownload?: () => void;

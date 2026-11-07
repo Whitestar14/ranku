@@ -8,6 +8,7 @@ yarn.lock
 package-lock.json
 .pnpm-store/
 .vite/
+.freebuff/
 *.zip
 
 .env

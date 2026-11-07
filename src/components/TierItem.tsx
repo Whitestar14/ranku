@@ -4,7 +4,6 @@ import { MoreHorizontal } from "lucide-react";
 import { CellData } from "@/types";
 import { PopoverMenu } from "./ui/PopoverMenu";
 import { RemoteImage } from "./ui/RemoteImage";
-import { AdjustControls, AdjustOverlay } from "./ui/AdjustOverlay";
 import { UrlInputModal } from "./ui/UrlInputModal";
 import { useCellInteraction } from "@/hooks/useCellInteraction";
 import { useStore } from "@/store/useStore";
@@ -125,22 +124,20 @@ export const TierItem = React.memo(function TierItem({
           </div>
         )}
 
-        {!tile.isAdjusting && (
-          <button
-            type="button"
-            data-export-hide=""
-            aria-label="Item actions"
-            aria-haspopup="menu"
-            aria-expanded={tile.isMenuOpen}
-            onClick={(e) => tile.openMenu(e, e.currentTarget)}
-            className="absolute top-1 right-1 z-10 flex items-center justify-center w-6 h-6
-                       media-scrim squircle hover:brightness-125 active:scale-95
-                       transition-transform duration-150 affordance touch-target"
-            style={{ borderRadius: "var(--radius-mini)" }}
-          >
-            <MoreHorizontal size={13} strokeWidth={2.5} />
-          </button>
-        )}
+        <button
+          type="button"
+          data-export-hide=""
+          aria-label="Item actions"
+          aria-haspopup="menu"
+          aria-expanded={tile.isMenuOpen}
+          onClick={(e) => tile.openMenu(e, e.currentTarget)}
+          className="absolute top-1 right-1 z-10 flex items-center justify-center w-6 h-6
+                     media-scrim squircle hover:brightness-125 active:scale-95
+                     transition-transform duration-150 affordance touch-target"
+          style={{ borderRadius: "var(--radius-mini)" }}
+        >
+          <MoreHorizontal size={13} strokeWidth={2.5} />
+        </button>
 
         {(tile.isOver || tile.isFileDragOver) && (
           <span
@@ -159,25 +156,6 @@ export const TierItem = React.memo(function TierItem({
           />
         )}
 
-        {tile.isAdjusting && (
-          <>
-            <AdjustOverlay
-              onPointerDown={tile.adjust.handlePointerDown}
-              onPointerMove={tile.adjust.handlePointerMove}
-              onPointerUp={tile.adjust.handlePointerUp}
-              onPointerCancel={tile.adjust.handlePointerCancel}
-            />
-            <AdjustControls
-              compact
-              className="absolute inset-x-0 bottom-1 z-40 mx-auto w-max"
-              onCancel={tile.adjust.stop}
-              onSave={() => {
-                tile.adjust.save();
-                tile.clearInteraction();
-              }}
-            />
-          </>
-        )}
       </div>
 
       <PopoverMenu
