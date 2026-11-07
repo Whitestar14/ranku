@@ -19,6 +19,11 @@ type Status = "loading" | "loaded" | "failed";
  * A plain image with a loading sheen, a remount-based retry, and a fallback.
  * The browser owns caching and decoding. There is no custom failure cache, so
  * an image that failed once gets another chance on its next mount.
+ *
+ * The sheen is tied to the image element's own state, never to the load event
+ * alone: a cached or inline image can finish decoding before React is able to
+ * listen, and waiting for an event that already happened leaves the sheen
+ * spinning forever — which is exactly what every poster did after a reload.
  */
 export const RemoteImage: React.FC<RemoteImageProps> = ({
   src,
@@ -32,18 +37,47 @@ export const RemoteImage: React.FC<RemoteImageProps> = ({
 }) => {
   const [attempt, setAttempt] = useState(0);
   const [status, setStatus] = useState<Status>("loading");
+  const [trackedSrc, setTrackedSrc] = useState(src);
+  const imgRef = useRef<HTMLImageElement>(null);
   const timer = useRef<number | undefined>(undefined);
 
-  useEffect(() => {
+  /* Derived during render rather than in an effect. An effect runs after the
+     browser may already have fired `load`, and writing "loading" back on top
+     of it would undo the one update that mattered. */
+  if (trackedSrc !== src) {
+    setTrackedSrc(src);
     setAttempt(0);
     setStatus("loading");
-  }, [src]);
+  }
 
   useEffect(() => {
     return () => {
       if (timer.current !== undefined) window.clearTimeout(timer.current);
     };
   }, []);
+
+  /* Settle against the element on every commit. `complete` covers the case the
+     load event misses; `naturalWidth` separates pixels from a silent failure. */
+  useEffect(() => {
+    const img = imgRef.current;
+    if (!img || !img.complete) return;
+
+    if (img.naturalWidth > 0) {
+      setStatus("loaded");
+      return;
+    }
+
+    // It finished without pixels, so it errored before a handler could run.
+    if (attempt + 1 >= MAX_ATTEMPTS) {
+      setStatus("failed");
+      return;
+    }
+    const id = window.setTimeout(() => {
+      setAttempt((value) => value + 1);
+      setStatus("loading");
+    }, RETRY_DELAY_MS);
+    return () => window.clearTimeout(id);
+  }, [src, attempt]);
 
   const retry = () => {
     if (timer.current !== undefined) window.clearTimeout(timer.current);
@@ -79,6 +113,7 @@ export const RemoteImage: React.FC<RemoteImageProps> = ({
     <span className={`relative block overflow-hidden ${className}`}>
       <img
         {...props}
+        ref={imgRef}
         key={`${imageKey(src)}:${attempt}`}
         src={src}
         draggable={false}
