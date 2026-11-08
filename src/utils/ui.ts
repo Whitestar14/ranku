@@ -1,13 +1,10 @@
-
-const RATIO_VALUE: Record<string, number> = {
-  "1:1": 1,
-  "3:4": 3 / 4,
-  "4:3": 4 / 3,
-  "16:9": 16 / 9,
-  "9:16": 9 / 16,
-};
-
 export const DEFAULT_ASPECT = "3:4";
+
+/** Numeric width ÷ height for a project ratio, e.g. "16:9" -> 1.777. */
+export const ratioValue = (ratio?: string): number => {
+  const [width, height] = (ratio || DEFAULT_ASPECT).split(":").map(Number);
+  return width > 0 && height > 0 ? width / height : 3 / 4;
+};
 
 /** CSS `aspect-ratio` value, e.g. "3 / 4". */
 export const aspectToCss = (ratio?: string): string => {
@@ -22,7 +19,5 @@ export const aspectToCss = (ratio?: string): string => {
  * and list thumbnails align to a shared baseline height while still honouring
  * the user's chosen aspect ratio.
  */
-export const widthForHeight = (ratio: string | undefined, height: number) => {
-  const value = RATIO_VALUE[ratio || DEFAULT_ASPECT] ?? RATIO_VALUE[DEFAULT_ASPECT];
-  return Math.round(height * value);
-};
+export const widthForHeight = (ratio: string | undefined, height: number) =>
+  Math.round(height * ratioValue(ratio));

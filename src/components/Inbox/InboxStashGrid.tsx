@@ -1,11 +1,17 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { Images } from "lucide-react";
 import { PixelIcon } from "@/components/pixel/PixelIcon";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ScrollRail } from "@/components/ui/ScrollRail";
+import { PopoverMenu } from "@/components/ui/PopoverMenu";
+import { dockImageActions } from "@/components/ui/imageActions";
+import { ImageInfoModal } from "@/components/ImageInfoModal";
 import { InboxItemCard } from "./InboxItemCard";
 import { motion, AnimatePresence } from "motion/react";
 import { motion as motionPreset } from "@/lib/motion";
+import { useImageTransferActions } from "@/hooks/useImageTransferActions";
+import { imageFileName } from "@/utils/imageInfo";
+import type { InboxItem } from "@/types";
 import type { DockCtrl } from "./dock/types";
 
 export const InboxStashGrid = React.memo<{ ctrl: DockCtrl }>(({ ctrl }) => {
@@ -16,6 +22,57 @@ export const InboxStashGrid = React.memo<{ ctrl: DockCtrl }>(({ ctrl }) => {
     usedOnBoard,
     selectedItemIds,
   } = ctrl;
+
+  const { copyImage, downloadImage } = useImageTransferActions();
+  /* One menu for the whole rail. A menu per card would mount a portal and a
+     document listener for every poster in the library, most of which are never
+     right-clicked. */
+  const [menu, setMenu] = useState<{
+    item: InboxItem;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [infoItem, setInfoItem] = useState<InboxItem | null>(null);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+
+  const openItemMenu = useCallback((e: React.MouseEvent, item: InboxItem) => {
+    /* A long press on a phone opens the context menu in the browser, but here
+       it belongs to the drag gesture. Only a mouse may open the menu. */
+    const pointerType = (e.nativeEvent as PointerEvent).pointerType;
+    if (pointerType && pointerType !== "mouse") return;
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ item, x: e.clientX, y: e.clientY });
+  }, []);
+
+  const closeItemMenu = useCallback(() => setMenu(null), []);
+
+  const menuItem = menu?.item;
+  const canRemove = menuItem ? !usedOnBoard.has(menuItem.imageSrc) : false;
+
+  const menuActions = menuItem
+    ? dockImageActions({
+        onDownload: () =>
+          downloadImage(menuItem.imageSrc, imageFileName(menuItem.imageSrc)),
+        onCopy: () => copyImage(menuItem.imageSrc),
+        onImageInfo: () => {
+          setInfoItem(menuItem);
+          setIsInfoOpen(true);
+        },
+        onRemove: canRemove
+          ? () => ctrl.handleDeleteItem(menuItem)
+          : undefined,
+      })
+    : [];
+
+  const infoCollectionName = infoItem
+    ? isAllView
+      ? ctrl.collections.find((collection) =>
+          collection.items.some((item) => item.id === infoItem.id),
+        )?.name
+      : ctrl.collections.find((collection) => collection.id === activeCollectionId)
+          ?.name
+    : undefined;
 
   const onUploadClick = () => ctrl.fileInputRef.current?.click();
   const key = isAllView ? "all" : activeCollectionId;
@@ -140,6 +197,7 @@ export const InboxStashGrid = React.memo<{ ctrl: DockCtrl }>(({ ctrl }) => {
                           isAllView ? "all-images" : activeCollectionId
                         }
                         onItemClick={ctrl.handleItemClick}
+                        onContextMenu={openItemMenu}
                         onDeleteItem={ctrl.handleDeleteItem}
                         onRecall={ctrl.handleRecall}
                       />
@@ -151,6 +209,23 @@ export const InboxStashGrid = React.memo<{ ctrl: DockCtrl }>(({ ctrl }) => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <PopoverMenu
+        isOpen={!!menu}
+        onClose={closeItemMenu}
+        actions={menuActions}
+        triggerPoint={menu ? { x: menu.x, y: menu.y, anchor: "left" } : null}
+        separators="explicit"
+        ariaLabel="Image actions"
+      />
+
+      <ImageInfoModal
+        isOpen={isInfoOpen}
+        item={infoItem}
+        collectionName={infoCollectionName}
+        isOnBoard={infoItem ? usedOnBoard.has(infoItem.imageSrc) : false}
+        onClose={() => setIsInfoOpen(false)}
+      />
     </div>
   );
 });

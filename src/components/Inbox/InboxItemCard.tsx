@@ -14,6 +14,7 @@ export interface InboxItemCardProps {
   isPlacing: boolean;
   isAllView: boolean;
   onItemClick: (e: React.MouseEvent, itemId: string) => void;
+  onContextMenu: (e: React.MouseEvent, item: InboxItem) => void;
   onDeleteItem: (item: InboxItem) => void;
   onRecall: (imageSrc: string) => void;
 }
@@ -27,6 +28,7 @@ export const InboxItemCard = React.memo<InboxItemCardProps>(
     isPlacing,
     isAllView,
     onItemClick,
+    onContextMenu,
     onDeleteItem,
     onRecall,
   }) => {
@@ -49,6 +51,7 @@ export const InboxItemCard = React.memo<InboxItemCardProps>(
         {...attributes}
         {...listeners}
         onClick={(e) => onItemClick(e, item.id)}
+        onContextMenu={(e) => onContextMenu(e, item)}
         className={cn(
           "relative group shrink-0 w-28 h-40 rounded-tile overflow-hidden",
           "cursor-grab active:cursor-grabbing transition-transform duration-150 ease-out",

@@ -63,6 +63,7 @@
   --color-primary: #007aff;
   --color-hover: rgba(120, 120, 128, 0.08);
   --color-overlay: rgba(0, 0, 0, 0.24);
+  --color-overlay-deep: rgba(0, 0, 0, 0.55);
   --color-destructive: #ff3b30;
   --color-focus-ring: #007aff;
   --color-accent-blue: #007aff;
@@ -166,6 +167,9 @@ html[data-no-grain] {
   --color-on-accent: #ffffff;
   --color-hover: rgba(120, 120, 128, 0.18);
   --color-overlay: rgba(0, 0, 0, 0.6);
+  /* A deeper overlay for immersive, artwork-first surfaces that cannot rely
+     on blur to separate themselves from the page behind them. */
+  --color-overlay-deep: rgba(0, 0, 0, 0.84);
   --color-destructive: #ff453a;
   --color-focus-ring: #0a84ff;
   --color-accent-blue: #0a84ff;

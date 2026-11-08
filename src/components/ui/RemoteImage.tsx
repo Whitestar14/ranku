@@ -8,6 +8,9 @@ export interface RemoteImageProps extends React.ImgHTMLAttributes<HTMLImageEleme
   fallback?: React.ReactNode;
   /** Suppress the loading placeholder (for places that draw their own). */
   noPlaceholder?: boolean;
+  /** How the artwork fills its box. Previews that must show the whole image
+   *  ask for `contain`; tiles and thumbnails keep the default. */
+  fit?: "cover" | "contain";
 }
 
 const MAX_ATTEMPTS = 3;
@@ -32,6 +35,7 @@ export const RemoteImage: React.FC<RemoteImageProps> = ({
   onLoad,
   className = "",
   noPlaceholder = false,
+  fit = "cover",
   style,
   ...props
 }) => {
@@ -118,7 +122,9 @@ export const RemoteImage: React.FC<RemoteImageProps> = ({
         src={src}
         draggable={false}
         referrerPolicy="no-referrer"
-        className="absolute inset-0 h-full w-full object-cover pointer-events-none transition-opacity duration-300 ease-standard"
+        className={`absolute inset-0 h-full w-full pointer-events-none transition-opacity duration-300 ease-standard ${
+          fit === "contain" ? "object-contain" : "object-cover"
+        }`}
         style={{
           ...style,
           opacity: status === "loaded" ? (style?.opacity ?? 1) : 0,

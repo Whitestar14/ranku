@@ -74,7 +74,7 @@ export const useStore = create<AppState>()(
       {
         name: "anime-ranker-state",
         storage: createJSONStorage(() => idbStorage),
-        version: 4,
+        version: 5,
         partialize: (state) => ({
           version: state.version,
           activeRankId: state.activeRankId,

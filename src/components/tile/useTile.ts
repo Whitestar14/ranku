@@ -5,13 +5,13 @@ import { usePanZoom } from "@/hooks/usePanZoom";
 import { useCellInteraction } from "@/hooks/useCellInteraction";
 import { useCellMediaUpload } from "@/hooks/useCellMediaUpload";
 import { useDropPulse, useIsDragging } from "@/state/dragState";
-import { useAdjustState } from "@/state/adjustState";
+import { useCropState } from "@/state/cropState";
+import { useImageTransferActions } from "@/hooks/useImageTransferActions";
 import type { PopoverAction } from "@/components/ui/PopoverMenu";
 import {
   emptyImageActions,
   filledImageActions,
 } from "@/components/ui/imageActions";
-import { copyImageToClipboard, downloadImage } from "@/utils/imageTransfer";
 import { readFileAsDataURL } from "@/utils/imageFile";
 import { useToast } from "@/context/ToastContext";
 import { DRAG_TYPE, DROP_TYPE } from "@/constants/drag";
@@ -59,7 +59,8 @@ export function useTile(adapter: TileAdapter) {
   } = adapter;
 
   const addToast = useToast();
-  const openAdjustSession = useAdjustState((state) => state.open);
+  const { copyImage, downloadImage } = useImageTransferActions();
+  const openCropSession = useCropState((state) => state.open);
   const tileRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLDivElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -87,7 +88,7 @@ export function useTile(adapter: TileAdapter) {
   const openCrop = useCallback(() => {
     if (!item?.imageSrc) return;
     const placement = parsePlacement(item);
-    openAdjustSession({
+    openCropSession({
       imageSrc: item.imageSrc,
       aspectRatio,
       zoom: placement.zoom ?? 1,
@@ -99,7 +100,7 @@ export function useTile(adapter: TileAdapter) {
           objectPosition: `${Math.round(posX)}% ${Math.round(posY)}%`,
         }),
     });
-  }, [item, aspectRatio, update, openAdjustSession]);
+  }, [item, aspectRatio, update, openCropSession]);
 
   const hasImage = !!item?.imageSrc;
   const dropId =
@@ -232,18 +233,13 @@ export function useTile(adapter: TileAdapter) {
 
   const handleDownload = useCallback(() => {
     if (!item?.imageSrc) return;
-    void downloadImage(item.imageSrc, filename);
-  }, [item?.imageSrc, filename]);
+    downloadImage(item.imageSrc, filename);
+  }, [item?.imageSrc, filename, downloadImage]);
 
   const handleCopy = useCallback(() => {
     if (!item?.imageSrc) return;
-    void copyImageToClipboard(item.imageSrc).then((ok) => {
-      addToast(
-        ok ? "success" : "error",
-        ok ? "Image copied!" : "Could not copy this image",
-      );
-    });
-  }, [item?.imageSrc, addToast]);
+    copyImage(item.imageSrc);
+  }, [item?.imageSrc, copyImage]);
 
   const handleFileDrop = useCallback(
     (e: React.DragEvent) => {
@@ -269,7 +265,7 @@ export function useTile(adapter: TileAdapter) {
     () =>
       hasImage
         ? filledImageActions({
-            onAdjust: openCrop,
+            onCropAdjust: openCrop,
             onDownload: handleDownload,
             onCopy: handleCopy,
             onReturnToLibrary: returnToLibrary,

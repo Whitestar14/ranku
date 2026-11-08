@@ -5,7 +5,7 @@ import { DEFAULT_TIER_COLORS, normalizeTierColor } from "@/constants/tierColors"
 import { createId } from "@/utils/storeUtils";
 import { logError } from "@/utils/log";
 
-const CURRENT_VERSION = 4;
+const CURRENT_VERSION = 5;
 
 export const ACCENT_BLUE_DARK = "#0a84ff";
 export const ACCENT_BLUE_LIGHT = "#007aff";
@@ -30,6 +30,22 @@ export const migratePersistedState = (persisted: unknown): unknown => {
   }
   if (state.inbox && "isDraggingFromDock" in state.inbox) {
     delete state.inbox.isDraggingFromDock;
+  }
+
+  /* `reduceGlassEffects` was a negative boolean, so an enabled switch meant
+     blur was off. It is now a three-state choice: older installs that had
+     reduced glass keep it off, everyone else follows the system until they
+     touch the switch. */
+  const preferences = state.preferences as
+    | (GlobalState["preferences"] & { reduceGlassEffects?: boolean })
+    | undefined;
+  if (preferences) {
+    if (preferences.glassEffects === undefined) {
+      preferences.glassEffects = preferences.reduceGlassEffects
+        ? "off"
+        : "auto";
+    }
+    delete preferences.reduceGlassEffects;
   }
   return state;
 };
@@ -197,7 +213,7 @@ export const createDefaultState = (): GlobalState => {
     },
     preferences: {
       skipDuplicateWarning: false,
-      reduceGlassEffects: false,
+      glassEffects: "auto",
       disableGrain: false,
       autoCloseDockOnDragDesktop: false,
       exportTrimmed: true,

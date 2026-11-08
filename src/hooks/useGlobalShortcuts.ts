@@ -7,6 +7,7 @@ import {
   CELL_WIDTH_MIN,
   DEFAULT_CELL_WIDTH,
 } from "@/utils/boardStyle";
+import { useImageTransferActions } from "@/hooks/useImageTransferActions";
 
 /** How far one press of ⌘+ / ⌘− moves the tile size. The range it clamps to is
  *  the rail slider's, so the two controls cannot drift apart. */
@@ -27,6 +28,7 @@ export function useGlobalShortcuts(options: ShortcutOptions) {
     null,
   );
   const addToast = useToast();
+  const { copyImage } = useImageTransferActions();
 
   /* Options are read through a ref. They are new closures every render, and
      putting them in the effect's deps would tear down and re-attach the window
@@ -136,13 +138,28 @@ export function useGlobalShortcuts(options: ShortcutOptions) {
         }
       }
 
-      // Copy/Paste internal
+      /* ── Copy ──────────────────────────────────────────────────────────────
+         The selection is copied to the system clipboard as a real image, not
+         just held for an in-app paste: the shortcut is advertised as "copy
+         image", and a shortcut that only fills an invisible buffer reads as
+         broken next to the identical menu item. */
       if (mod && key === "c") {
-        if (st.interactionState?.type === "cell" && rank) {
-          const cell = rank.cells[st.interactionState.index];
-          if (cell && cell.imageSrc) {
-            setInternalClipboard(cell.imageSrc);
-          }
+        const selected = st.interactionState;
+        let imageSrc: string | null = null;
+        if (selected?.type === "cell") {
+          imageSrc = rank?.cells[selected.index]?.imageSrc ?? null;
+        } else if (selected?.type === "tier-item") {
+          imageSrc =
+            rank?.tierRows
+              .find((row) => row.id === selected.rowId)
+              ?.items.find((item) => item.id === selected.itemId)?.imageSrc ??
+            null;
+        }
+
+        if (imageSrc) {
+          e.preventDefault();
+          setInternalClipboard(imageSrc);
+          copyImage(imageSrc);
         }
       }
       if (mod && key === "v") {
@@ -171,5 +188,5 @@ export function useGlobalShortcuts(options: ShortcutOptions) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [internalClipboard, addToast]);
+  }, [internalClipboard, addToast, copyImage]);
 }

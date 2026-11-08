@@ -7,6 +7,14 @@ export interface PanZoomState {
   posY: number;
 }
 
+export interface PanZoomOptions {
+  /**
+   * Route drag, wheel and pinch input into the placement. Tiles only display a
+   * saved placement, while a crop overlay edits one.
+   */
+  interactive?: boolean;
+}
+
 const MIN_ZOOM = 0.02;
 const MAX_ZOOM = 4;
 const WHEEL_SENSITIVITY = 1.0018;
@@ -36,20 +44,15 @@ interface Geometry {
 export function usePanZoom(
   initialState: Partial<PanZoomState> = {},
   containerRef: React.RefObject<HTMLElement | null>,
-  onUpdate?: (state: PanZoomState) => void,
-  /** The element the artwork sits in, which also owns the dimming overlay. */
-  wheelTargetRef: React.RefObject<HTMLElement | null> = containerRef,
+  { interactive = false }: PanZoomOptions = {},
 ) {
-  const [isAdjusting, setIsAdjusting] = useState(false);
-  const [isAdjustDragging, setIsAdjustDragging] = useState(false);
+  const [isInteracting, setIsInteracting] = useState(false);
   const [placement, setPlacement] = useState(() => readPlacement(initialState));
   const [geometry, setGeometry] = useState<Geometry | null>(null);
 
   const zoomFloor = geometry ? fitZoomFor(geometry) : MIN_ZOOM;
   const zoomFloorRef = useRef(zoomFloor);
   zoomFloorRef.current = zoomFloor;
-
-  const saved = useRef<PanZoomState>(placement);
 
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const last = useRef<{ x: number; y: number } | null>(null);
@@ -103,17 +106,19 @@ export function usePanZoom(
     );
   }, [geometry, zoomFloor]);
 
+  /* A display-only surface mirrors the placement it is given; an interactive
+     one owns its own and must not be reset by a parent re-render. */
   const { zoom: inputZoom, posX: inputPosX, posY: inputPosY } = initialState;
   useEffect(() => {
-    if (isAdjusting) return;
-    const next = readPlacement({
-      zoom: inputZoom,
-      posX: inputPosX,
-      posY: inputPosY,
-    });
-    saved.current = next;
-    setPlacement(next);
-  }, [isAdjusting, inputZoom, inputPosX, inputPosY]);
+    if (interactive) return;
+    setPlacement(
+      readPlacement({
+        zoom: inputZoom,
+        posX: inputPosX,
+        posY: inputPosY,
+      }),
+    );
+  }, [interactive, inputZoom, inputPosX, inputPosY]);
 
   const panRange = useMemo(() => {
     if (!geometry) return null;
@@ -173,7 +178,7 @@ export function usePanZoom(
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 1) {
       last.current = { x: e.clientX, y: e.clientY };
-      setIsAdjustDragging(true);
+      setIsInteracting(true);
     } else {
       // A second finger cancels the drag and starts a pinch instead.
       last.current = null;
@@ -209,7 +214,7 @@ export function usePanZoom(
     if (pointers.current.size === 0) {
       last.current = null;
       pinch.current = null;
-      setIsAdjustDragging(false);
+      setIsInteracting(false);
     } else {
       pinch.current = null;
       const [remaining] = [...pointers.current.values()];
@@ -218,10 +223,8 @@ export function usePanZoom(
   };
 
   useEffect(() => {
-    if (!isAdjusting) return;
-    // listen to the whole tile since the overlay is a
-    // sibling of the image and wheel events won't reach the image wrapper
-    const box = wheelTargetRef.current;
+    if (!interactive) return;
+    const box = containerRef.current;
     if (!box) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -239,37 +242,17 @@ export function usePanZoom(
     };
     box.addEventListener("wheel", onWheel, { passive: false });
     return () => box.removeEventListener("wheel", onWheel);
-  }, [isAdjusting, wheelTargetRef]);
+  }, [interactive, containerRef]);
 
-  const resetGesture = () => {
-    pointers.current.clear();
+  /** Back to the default framing: full cover, centred. */
+  const resetPlacement = () => {
+    setPlacement({ zoom: 1, posX: 50, posY: 50 });
     last.current = null;
     pinch.current = null;
-    setIsAdjustDragging(false);
-  };
-
-  const startAdjusting = () => {
-    setPlacement(saved.current);
-    measure();
-    setIsAdjusting(true);
-  };
-
-  const stopAdjusting = () => {
-    setPlacement(saved.current);
-    resetGesture();
-    setIsAdjusting(false);
-  };
-
-  const saveAdjustments = () => {
-    saved.current = placement;
-    onUpdate?.(placement);
-    resetGesture();
-    setIsAdjusting(false);
   };
 
   return {
-    isAdjusting,
-    isAdjustDragging,
+    isInteracting,
     zoom: placement.zoom,
     posX: placement.posX,
     posY: placement.posY,
@@ -278,9 +261,6 @@ export function usePanZoom(
     handlePointerMove,
     handlePointerUp: endPointer,
     handlePointerCancel: endPointer,
-    startAdjusting,
-    stopAdjusting,
-    saveAdjustments,
-    setZoom,
+    resetPlacement,
   };
 }

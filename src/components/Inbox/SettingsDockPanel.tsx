@@ -24,6 +24,10 @@ import { useToast } from "@/context/ToastContext";
 import { useShortcutState } from "@/state/shortcutState";
 import { runActivity } from "@/state/activityState";
 import { useCanHover } from "@/hooks/useCanHover";
+import {
+  resolveGlassEnabled,
+  useSystemReduceTransparency,
+} from "@/hooks/useGlassEffects";
 import type { GlobalState } from "@/types";
 
 const ACCENT_PRESETS = [
@@ -64,7 +68,7 @@ export const SettingsDockPanel: React.FC<{
 }> = ({ requestConfirm, onOpenAbout }) => {
   const {
     accent,
-    reduceGlass,
+    glassEffects,
     disableGrain,
     autoCloseDesktop,
     isDark,
@@ -74,7 +78,7 @@ export const SettingsDockPanel: React.FC<{
     useShallow((s) => ({
       accent: s.theme?.accentColor ?? ACCENT_BLUE_DARK,
       isDark: s.theme?.isDark ?? true,
-      reduceGlass: s.preferences.reduceGlassEffects ?? false,
+      glassEffects: s.preferences.glassEffects ?? "auto",
       disableGrain: s.preferences.disableGrain ?? false,
       autoCloseDesktop: s.preferences.autoCloseDockOnDragDesktop ?? false,
       updateTheme: s.updateGlobalTheme,
@@ -83,6 +87,8 @@ export const SettingsDockPanel: React.FC<{
   );
 
   const canHover = useCanHover();
+  const systemReduce = useSystemReduceTransparency();
+  const glassEnabled = resolveGlassEnabled(glassEffects, systemReduce);
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const [isChoiceModalOpen, setIsChoiceModalOpen] = React.useState(false);
   const [pendingState, setPendingState] = React.useState<GlobalState | null>(
@@ -173,23 +179,23 @@ export const SettingsDockPanel: React.FC<{
           </div>
 
           <SettingRow
-            asLabel
+            as="div"
             icon={<Layers size={16} />}
             iconBg="bg-indigo-500/20 text-indigo-400"
-            label="Reduce glass effects"
-            sublabel="Improves scrolling performance, but disables blurs."
+            label="Blur & transparency"
+            sublabel="Frosted surfaces behind panels, menus, and overlays."
             right={
               <Toggle
-                aria-label="Reduce glass effects"
-                checked={reduceGlass}
+                aria-label="Blur and transparency"
+                checked={glassEnabled}
                 onCheckedChange={(v) =>
-                  updatePreferences({ reduceGlassEffects: v })
+                  updatePreferences({ glassEffects: v ? "on" : "off" })
                 }
               />
             }
           />
           <SettingRow
-            asLabel
+            as="div"
             icon={<Sparkles size={16} />}
             iconBg="bg-emerald-500/20 text-emerald-400"
             label="Surface grain"
@@ -203,7 +209,7 @@ export const SettingsDockPanel: React.FC<{
             }
           />
           <SettingRow
-            asLabel
+            as="div"
             icon={<Minimize2 size={16} />}
             iconBg="bg-purple-500/20 text-purple-400"
             label="Auto-close dock"

@@ -83,6 +83,13 @@ export interface GlobalTheme {
 
 export type ImageSourcePreference = "auto" | "myanimelist" | "anilist";
 
+/**
+ * Blur and transparency preference. `auto` follows the system's
+ * `prefers-reduced-transparency`, while `on` and `off` are explicit choices
+ * that must win over the system setting.
+ */
+export type GlassEffectsPreference = "auto" | "on" | "off";
+
 export interface GlobalState {
   version: number;
   activeRankId: string;
@@ -95,7 +102,10 @@ export interface GlobalState {
   };
   preferences: {
     skipDuplicateWarning: boolean;
-    reduceGlassEffects: boolean;
+    /** Blur and transparency. Defaults to following the OS. */
+    glassEffects?: GlassEffectsPreference;
+    /** Legacy boolean replaced by `glassEffects`; only read by the migration. */
+    reduceGlassEffects?: boolean;
     /** Disables the SVG noise layer while keeping specular highlights. */
     disableGrain?: boolean;
     autoCloseDockOnDragDesktop: boolean;

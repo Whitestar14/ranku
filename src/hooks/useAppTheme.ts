@@ -1,27 +1,21 @@
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect } from "react";
 import { useStore } from "@/store/useStore";
 import { selectTheme, selectPreferences } from "@/store/selectors";
 import { accentForeground } from "@/theme/palettes";
-
-const TRANSPARENCY_QUERY = "(prefers-reduced-transparency: reduce)";
+import {
+  resolveGlassEnabled,
+  useSystemReduceTransparency,
+} from "@/hooks/useGlassEffects";
 
 /** Applies the active appearance and accent to `<html>`. */
 export function useAppTheme(isLoaded: boolean) {
   const theme = useStore(selectTheme);
   const preferences = useStore(selectPreferences);
-  const reduceGlassEffects = preferences.reduceGlassEffects ?? false;
-  const [systemReduce, setSystemReduce] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.matchMedia(TRANSPARENCY_QUERY).matches,
+  const systemReduce = useSystemReduceTransparency();
+  const glassEnabled = resolveGlassEnabled(
+    preferences.glassEffects,
+    systemReduce,
   );
-
-  useLayoutEffect(() => {
-    const query = window.matchMedia(TRANSPARENCY_QUERY);
-    const onChange = () => setSystemReduce(query.matches);
-    query.addEventListener("change", onChange);
-    return () => query.removeEventListener("change", onChange);
-  }, []);
 
   useLayoutEffect(() => {
     if (!isLoaded || !theme) return;
@@ -50,10 +44,7 @@ export function useAppTheme(isLoaded: boolean) {
 
   useLayoutEffect(() => {
     const root = document.documentElement;
-    root.toggleAttribute(
-      "data-reduce-glass",
-      reduceGlassEffects || systemReduce,
-    );
+    root.toggleAttribute("data-reduce-glass", !glassEnabled);
     root.toggleAttribute("data-no-grain", preferences.disableGrain ?? false);
-  }, [reduceGlassEffects, systemReduce, preferences.disableGrain]);
+  }, [glassEnabled, preferences.disableGrain]);
 }
