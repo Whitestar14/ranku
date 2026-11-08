@@ -17,6 +17,7 @@ import {
   DOCK_TOGGLE_EVENT,
 } from "@/utils/inboxDrag";
 import type { ImageSourcePreference, InboxItem } from "@/types";
+import type { SearchMode } from "@/core/metadata";
 import type { DockSurface, InboxTab } from "@/components/Inbox/types";
 import { runActivity, useActivityState } from "@/state/activityState";
 
@@ -86,9 +87,7 @@ export function useInboxController(
   const [isExpanded, setIsExpanded] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchMode, setSearchMode] = useState<"anime" | "characters">(
-    "characters",
-  );
+  const [searchMode, setSearchMode] = useState<SearchMode>("characters");
 
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [tempName, setTempName] = useState("");

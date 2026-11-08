@@ -62,7 +62,8 @@ export const SearchIdlePane: React.FC = () => (
     <PixelIcon name="image" size={26} className="opacity-25" />
     <span className="text-footnote font-medium text-text">Find a poster</span>
     <span className="max-w-[240px] text-caption-1 leading-relaxed">
-      Search an anime or a character, then tap a result to add it to the stash.
+      Search an anime, a manga or a character, then tap a result to add it to
+      the stash.
     </span>
   </div>
 );

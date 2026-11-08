@@ -35,6 +35,12 @@ const SOURCE_SHORT: Record<SourcePreference, string> = {
   anilist: "AniList",
 };
 
+const MODE_OPTIONS: { value: SearchMode; label: string; noun: string }[] = [
+  { value: "anime", label: "Anime", noun: "anime" },
+  { value: "manga", label: "Manga", noun: "manga" },
+  { value: "characters", label: "People", noun: "characters" },
+];
+
 const SOURCE_OPTIONS: { value: SourcePreference; label: string }[] = [
   { value: "auto", label: "Automatic" },
   { value: "myanimelist", label: "MyAnimeList" },
@@ -101,7 +107,10 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
             autoCorrect="off"
-            placeholder={`Search ${mode === "anime" ? "anime" : "characters"}`}
+            placeholder={`Search ${
+              MODE_OPTIONS.find((option) => option.value === mode)?.noun ??
+              "posters"
+            }`}
             className={`font-normal bg-surface-secondary border-transparent rounded-full h-9 pl-9
                         transition-[background-color,border-color,box-shadow] duration-150
                         ${isFocused ? "bg-surface-elevated border-primary/50 ring-2 ring-primary/15" : ""}`}
@@ -125,14 +134,11 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           />
         </div>
 
-        <div className="w-full sm:w-[132px] shrink-0">
+        <div className="w-full sm:w-[184px] shrink-0">
           <SegmentedControl
             value={mode}
             onChange={(val) => onModeChange(val as SearchMode)}
-            options={[
-              { value: "anime", label: "Anime" },
-              { value: "characters", label: "People" },
-            ]}
+            options={MODE_OPTIONS.map(({ value, label }) => ({ value, label }))}
           />
         </div>
       </div>

@@ -18,6 +18,20 @@ const ANILIST_ANIME_QUERY = `
   }
 `;
 
+const ANILIST_MANGA_QUERY = `
+  query ($search: String, $perPage: Int) {
+    Page(page: 1, perPage: $perPage) {
+      media(search: $search, type: MANGA, sort: [FAVOURITES_DESC], isAdult: false) {
+        id
+        idMal
+        title { english romaji userPreferred }
+        coverImage { extraLarge large medium }
+        favourites
+      }
+    }
+  }
+`;
+
 const ANILIST_CHARACTER_QUERY = `
   query ($search: String, $perPage: Int) {
     Page(page: 1, perPage: $perPage) {
@@ -30,6 +44,13 @@ const ANILIST_CHARACTER_QUERY = `
     }
   }
 `;
+
+/** One query per mode, so adding a catalogue entry is a single line. */
+const QUERY_FOR: Record<SearchMode, string> = {
+  anime: ANILIST_ANIME_QUERY,
+  manga: ANILIST_MANGA_QUERY,
+  characters: ANILIST_CHARACTER_QUERY,
+};
 
 interface AniListMedia {
   id: number;
@@ -106,7 +127,7 @@ export async function searchAniList(
     mode: "cors",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
-      query: mode === "anime" ? ANILIST_ANIME_QUERY : ANILIST_CHARACTER_QUERY,
+      query: QUERY_FOR[mode],
       variables: { search: query, perPage: PER_PAGE },
     }),
   };
@@ -120,6 +141,6 @@ export async function searchAniList(
   }
 
   const page = payload.data?.Page;
-  if (mode === "anime") return (page?.media ?? []).flatMap(toMedia);
+  if (mode !== "characters") return (page?.media ?? []).flatMap(toMedia);
   return (page?.characters ?? []).flatMap(toCharacter);
 }

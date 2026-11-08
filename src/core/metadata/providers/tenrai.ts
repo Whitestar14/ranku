@@ -33,7 +33,7 @@ export async function searchTenrai(
     order_by: "favorites",
     sort: "desc",
   });
-  if (mode === "anime") params.set("sfw", "true");
+  if (mode !== "characters") params.set("sfw", "true");
 
   const payload = (await fetchJson(
     `${TENRAI_BASE}/${mode}?${params.toString()}`,

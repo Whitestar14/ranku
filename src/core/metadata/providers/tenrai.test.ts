@@ -43,19 +43,22 @@ describe("searchTenrai", () => {
     });
   });
 
-  it("asks the right catalogue and keeps anime searches safe", async () => {
+  it("asks the right catalogue and keeps series searches safe", async () => {
     respond({ data: [] });
     const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
     await searchTenrai("titan", "anime", signal());
+    await searchTenrai("berserk", "manga", signal());
     await searchTenrai("mikasa", "characters", signal());
 
-    const [animeUrl, characterUrl] = fetchMock.mock.calls.map((call) =>
+    const [animeUrl, mangaUrl, characterUrl] = fetchMock.mock.calls.map((call) =>
       new URL(String((call as unknown[])[0])),
     );
     expect(animeUrl.pathname).toBe("/v1/anime");
     expect(animeUrl.searchParams.get("sfw")).toBe("true");
+    expect(mangaUrl.pathname).toBe("/v1/manga");
+    expect(mangaUrl.searchParams.get("sfw")).toBe("true");
     expect(characterUrl.pathname).toBe("/v1/characters");
     expect(characterUrl.searchParams.get("sfw")).toBeNull();
   });

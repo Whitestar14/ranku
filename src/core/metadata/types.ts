@@ -1,5 +1,5 @@
 export type MetadataSource = "tenrai" | "anilist";
-export type SearchMode = "anime" | "characters";
+export type SearchMode = "anime" | "manga" | "characters";
 export type SourcePreference = "auto" | "myanimelist" | "anilist";
 
 /** Human labels, so the UI never has to know provider ids. */

@@ -14,7 +14,7 @@ Everything is stored in your browser.
 
 - Three board layouts of a grid up to 50 x 20, an ordered list, and a tier list
 - A shared image library with collections, multi-select, bulk move/delete, and drag-and-drop in both directions between the library and any board
-- Poster search across MyAnimeList (through Tenrai) and AniList, with automatic fallback when one is down or slow
+- Poster and cover search across anime, manga and characters on MyAnimeList (through Tenrai) and AniList, with automatic fallback when one is down or slow
 - Per-tile crop and adjust
 - Export to PNG or JPG at 1x, 2x or 3x, padded or trimmed to the artwork, or copy the board to the clipboard
 - A blend of iOS-inspired design with some 8-bit aesthetics (I don't own an iOS device and so this is mostly guided by Medium articles and very loosely on Apple's HIG, therefore expect some roughness around the edges)
